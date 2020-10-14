@@ -1,0 +1,42 @@
+{
+   "name": "admin-bro-graphql",
+   "version": "1.0.0",
+   "description": "admin-bro GraphQL adapter",
+   "keywords": [
+      "admin-bro",
+      "graphql"
+   ],
+   "repository": {
+      "type": "git",
+      "url": "https://github.com/erkkah/admin-bro-graphql"
+   },
+   "main": "lib/index.js",
+   "types": "lib/index.d.ts",
+   "files": [
+      "lib/**/*"
+   ],
+   "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1",
+      "build": "tsc",
+      "lint": "eslint"
+   },
+   "author": "Erik Agsjö",
+   "license": "ISC",
+   "devDependencies": {
+      "admin-bro": "^3.2.5",
+      "@types/node": "^14.10.0",
+      "@typescript-eslint/eslint-plugin": "^4.1.0",
+      "@typescript-eslint/parser": "^4.1.0",
+      "eslint": "^7.9.0",
+      "ts-node": "^9.0.0",
+      "ts-node-dev": "^1.0.0-pre.62",
+      "typescript": "^4.0.2"
+   },
+   "peerDependencies": {
+      "admin-bro": "^3.2.5"
+   },
+   "dependencies": {
+      "axios": "^0.20.0",
+      "graphql": "^14.7.0"
+   }
+}
