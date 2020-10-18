@@ -34,14 +34,21 @@ export class GraphQLConnection {
         public readonly connection: { name: string, url: string } = {
             name: "graphql", url: "http://localhost:3000/graphql"
         },
-        public readonly resources: GraphQLResourceMap
+        public readonly resources: GraphQLResource[]
     ) {
         this.client = new GraphQLClient(connection.url);
     }
 
+    get r(): GraphQLResourceMap {
+        return this.resources.reduce((map: GraphQLResourceMap, resource) => {
+            map[resource.id] = resource;
+            return map;
+        }, {});
+    }
+
     async init(): Promise<void> {
         await Promise.all(
-            Object.values(this.resources).map((res) => res as InternalGraphQLResource)
+            this.resources.map((res) => res as InternalGraphQLResource)
                 .map(async (resource) => {
                     const findMapping = resource.findOne(42);
                     const parsed = parse(findMapping.query);
@@ -59,7 +66,7 @@ export class GraphQLConnection {
                             } else {
                                 const graphQLType = typeInfo.getType();
                                 if (!graphQLType) {
-                                    throw new Error("Unexpected empty type");
+                                    throw new Error(`Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`);
                                 }
                                 const namedType = getNamedType(graphQLType);
                                 const propertyID = [...path, fieldName].join(".");
@@ -118,7 +125,7 @@ export class GraphQLConnection {
 export interface GraphQLQueryMapping<T> {
     query: string;
     variables?: Record<string, unknown>;
-    parseResult(response: Record<string, unknown>): T;
+    parseResult(result: Record<string, unknown>): T;
 }
 
 export interface GraphQLResource {
@@ -311,7 +318,7 @@ class GraphQLDatabaseAdapter extends BaseDatabase {
     }
 
     public resources(): Array<BaseResource> {
-        return Object.values(this.connection.resources)
+        return this.connection.resources
             .map((r) => new GraphQLResourceAdapter(r as InternalGraphQLResource));
     }
 
