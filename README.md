@@ -18,7 +18,7 @@ The only required operations to implement are `count`, `find` and `findOne`. It'
 
 ```typescript
 import AdminBro, { BaseRecord } from "admin-bro";
-import { FieldFilter, FindOptions, GraphQLAdapter, GraphQLConnection } from "../src";
+import { FieldFilter, FindOptions, GraphQLAdapter, GraphQLConnection } from "admin-bro-graphql";
 AdminBro.registerAdapter(GraphQLAdapter);
 
 const connection = new GraphQLConnection({ name: "Stuff", url: "http://localhost:3000/graphql" }, [

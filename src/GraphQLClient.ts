@@ -21,7 +21,10 @@ export class GraphQLClient {
             query,
             variables
         };
-        const response = await this.axios.post("/", body);
+        const response = await this.axios.post(
+            "/",
+            body
+        );
         return response.data;
     }
 }
