@@ -21,7 +21,9 @@ import {
     GraphQLNamedType,
     isInputType,
     coerceValue,
-    IntrospectionQuery
+    IntrospectionQuery,
+    DocumentNode,
+    GraphQLFormattedError
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -34,7 +36,8 @@ export class GraphQLConnection {
         public readonly connection: { name: string, url: string } = {
             name: "graphql", url: "http://localhost:3000/graphql"
         },
-        public readonly resources: GraphQLResource[]
+        public readonly resources: GraphQLResource[],
+        private readonly onError?: (error: Error) => void,
     ) {
         this.client = new GraphQLClient(connection.url);
     }
@@ -51,7 +54,10 @@ export class GraphQLConnection {
             this.resources.map((res) => res as InternalGraphQLResource)
                 .map(async (resource) => {
                     const findMapping = resource.findOne(42);
-                    const parsed = parse(findMapping.query);
+                    const parsed =
+                        (typeof findMapping.query === "string")
+                            ? parse(findMapping.query)
+                            : findMapping.query;
                     const fullSchema = await this.fetchSchema();
                     const typeInfo = new TypeInfo(fullSchema);
                     const path: string[] = [];
@@ -113,17 +119,35 @@ export class GraphQLConnection {
         }
     }
 
+    private formatGraphQLErrors(errors: GraphQLFormattedError[]): string {
+        return "GraphQL request error: " + errors.map((error) => error.message).join(", ");
+    }
+
     async request<T = Record<string, unknown>>(document: string, variables?: Record<string, unknown>): Promise<T> {
-        const response = await this.client.request<T>(document, variables);
-        if (response.errors?.length) {
-            throw new Error("Failed to execute request: " + response.errors.join(", "));
+        try {
+            const response = await this.client.request<T>(document, variables);
+            if (response.errors?.length) {
+                this.reportAndThrow(new Error(this.formatGraphQLErrors(response.errors)));
+            }
+            return response.data;
+        } catch (thrown) {
+            let error = thrown;
+            const graphQLErrors = error.response?.data?.errors;
+            if (graphQLErrors) {
+                error = new Error(this.formatGraphQLErrors(graphQLErrors));
+            }
+            this.reportAndThrow(error);
         }
-        return response.data;
+    }
+
+    reportAndThrow(error: Error): never {
+        this.onError?.(error);
+        throw error;
     }
 }
 
 export interface GraphQLQueryMapping<T> {
-    query: string;
+    query: string | DocumentNode;
     variables?: Record<string, unknown>;
     parseResult(result: Record<string, unknown>): T;
 }
@@ -261,7 +285,13 @@ class GraphQLResourceAdapter extends BaseResource {
     }
 
     private async executeMapping<T = Record<string, unknown>>(mapping: GraphQLQueryMapping<T>): Promise<T> {
-        const result = await this.connection.request(mapping.query, mapping.variables);
+        const queryString = typeof mapping.query === "string"
+            ? mapping.query
+            : mapping.query.loc?.source.body;
+        if (!queryString) {
+            this.connection.reportAndThrow(new Error("Unexpected parsed query without body"));
+        }
+        const result = await this.connection.request(queryString, mapping.variables);
         return mapping.parseResult(result);
     }
 
@@ -272,17 +302,23 @@ class GraphQLResourceAdapter extends BaseResource {
 
             const graphQLType = this.rawResource.typeMap?.get(element.path);
             if (!graphQLType || !isInputType(graphQLType)) {
-                throw new Error(`Cannot get valid GraphQL type from ${this.rawResource.id}:${element.path}`);
+                this.connection.reportAndThrow(
+                    new Error(`Cannot get valid GraphQL type from ${this.rawResource.id}:${element.path}`)
+                );
             }
 
             const coercedFrom = coerceValue(from, graphQLType);
             if (coercedFrom.errors?.length) {
-                throw new Error(`Cannot coerce "from" value from ${from} to ${graphQLType}: ${coercedFrom.errors}`);
+                this.connection.reportAndThrow(
+                    new Error(`Cannot coerce "from" value from ${from} to ${graphQLType}: ${coercedFrom.errors}`)
+                );
             }
 
             const coercedTo = coerceValue(to, graphQLType);
             if (coercedTo.errors?.length) {
-                throw new Error(`Cannot coerce "to" value from ${from} to ${graphQLType}: ${coercedTo.errors}`);
+                this.connection.reportAndThrow(
+                    new Error(`Cannot coerce "to" value from ${from} to ${graphQLType}: ${coercedTo.errors}`)
+                );
             }
 
             mapped.push({
