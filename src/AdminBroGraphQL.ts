@@ -85,7 +85,7 @@ export class GraphQLConnection {
                                     throw new Error(`Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`);
                                 }
                                 const namedType = getNamedType(graphQLType);
-                                const propertyID = [...path, fieldName].join(".");
+                                const propertyID = [...path.slice(1), fieldName].join(".");
                                 const propertyType = resource.fieldTypeOverrides?.[propertyID] ||
                                     GraphQLConnection.graphQLTypeToPropertyType(namedType);
                                 resource.properties?.push(
@@ -245,25 +245,37 @@ class GraphQLResourceAdapter extends BaseResource {
     }
 
     async count(filter: Filter): Promise<number> {
-        const fieldFilter = this.mapFilter(filter);
-        const mapping = this.rawResource.count(fieldFilter);
-        return this.executeMapping(mapping);
+        try {
+            const fieldFilter = this.mapFilter(filter);
+            const mapping = this.rawResource.count(fieldFilter);
+            return await this.executeMapping(mapping);
+        } catch (error) {
+            this.connection.reportAndThrow(error);
+        }
     }
 
     async find(filter: Filter, options: FindOptions): Promise<BaseRecord[]> {
-        const fieldFilter = this.mapFilter(filter);
-        const mapping = this.rawResource.find(fieldFilter, options);
-        const result = await this.executeMapping(mapping);
-        return result.map((record) => new BaseRecord(record, this));
+        try {
+            const fieldFilter = this.mapFilter(filter);
+            const mapping = this.rawResource.find(fieldFilter, options);
+            const result = await this.executeMapping(mapping);
+            return result.map((record) => new BaseRecord(record, this));
+        } catch (error) {
+            this.connection.reportAndThrow(error);
+        }
     }
 
     async findOne(id: string | number): Promise<BaseRecord | null> {
-        const mapping = this.rawResource.findOne(id);
-        const result = await this.executeMapping(mapping);
-        if (result) {
-            return new BaseRecord(result, this);
+        try {
+            const mapping = this.rawResource.findOne(id);
+            const result = await this.executeMapping(mapping);
+            if (result) {
+                return new BaseRecord(result, this);
+            }
+            return null;
+        } catch (error) {
+            this.connection.reportAndThrow(error);
         }
-        return null;
     }
 
     async findMany(ids: Array<string | number>): Promise<BaseRecord[]> {
@@ -274,27 +286,39 @@ class GraphQLResourceAdapter extends BaseResource {
     }
 
     async create(params: ParamsType): Promise<ParamsType> {
-        const mapping = this.rawResource.create?.(params);
-        if (!mapping) {
-            throw new ForbiddenError("Resource is not editable");
+        try {
+            const mapping = this.rawResource.create?.(params);
+            if (!mapping) {
+                throw new ForbiddenError("Resource is not editable");
+            }
+            return await this.executeMapping(mapping);
+        } catch (error) {
+            this.connection.reportAndThrow(error);
         }
-        return this.executeMapping(mapping);
     }
 
     async update(id: string, params: ParamsType): Promise<ParamsType> {
-        const mapping = this.rawResource.update?.(id, params);
-        if (!mapping) {
-            throw new ForbiddenError("Resource is not editable");
+        try {
+            const mapping = this.rawResource.update?.(id, params);
+            if (!mapping) {
+                throw new ForbiddenError("Resource is not editable");
+            }
+            return await this.executeMapping(mapping);
+        } catch (error) {
+            this.connection.reportAndThrow(error);
         }
-        return this.executeMapping(mapping);
     }
 
     async delete(id: string): Promise<void> {
-        const mapping = this.rawResource.delete?.(id);
-        if (!mapping) {
-            throw new ForbiddenError("Resource is not editable");
+        try {
+            const mapping = this.rawResource.delete?.(id);
+            if (!mapping) {
+                throw new ForbiddenError("Resource is not editable");
+            }
+            await this.executeMapping(mapping);
+        } catch (error) {
+            this.connection.reportAndThrow(error);
         }
-        this.executeMapping(mapping);
     }
 
     static isAdapterFor(resource: GraphQLResource): boolean {
