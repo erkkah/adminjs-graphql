@@ -1,3 +1,4 @@
+
 import {
     BaseDatabase,
     BaseProperty,
@@ -28,18 +29,27 @@ import {
 
 import { GraphQLClient } from "./GraphQLClient";
 
+export interface ConnectionOptions {
+    name?: string;
+    url?: string;
+    headers?: () => Record<string, string>;
+}
+
 export class GraphQLConnection {
     readonly tag = "GraphQLConnection";
-    private readonly client: GraphQLClient;
+    readonly client: GraphQLClient;
+    readonly name: string;
+    private readonly headers?: () => Record<string, string>;
 
     constructor(
-        public readonly connection: { name: string, url: string } = {
-            name: "graphql", url: "http://localhost:3000/graphql"
-        },
         public readonly resources: GraphQLResource[],
+        options?: ConnectionOptions,
         private readonly onError?: (error: Error) => void,
     ) {
-        this.client = new GraphQLClient(connection.url);
+        this.name = options?.name ?? "graphql";
+        const url = options?.url ?? "http://localhost:3000/graphql";
+        this.client = new GraphQLClient(url);
+        this.headers = options?.headers;
     }
 
     get r(): GraphQLResourceMap {
@@ -98,24 +108,26 @@ export class GraphQLConnection {
 
     private async fetchSchema(): Promise<GraphQLSchema> {
         const query = getIntrospectionQuery({ descriptions: false });
-        const result = await this.client.request<IntrospectionQuery>(query);
-        return buildClientSchema(result.data);
+        const result = await this.request<IntrospectionQuery>(query);
+        return buildClientSchema(result);
     }
 
     private static graphQLTypeToPropertyType(graphQLType: GraphQLNamedType): PropertyType {
         switch (graphQLType.name) {
-        case "String":
-            return "string";
-        case "Float":
-            return "float";
-        case "Int":
-            return "number";
-        case "Bool":
-            return "boolean";
-        case "Date":
-            return "datetime";
-        default:
-            return "mixed";
+            case "String":
+                return "string";
+            case "Float":
+                return "float";
+            case "Int":
+                return "number";
+            case "Bool":
+                return "boolean";
+            case "Date":
+                return "datetime";
+            case "ID":
+                return "string";
+            default:
+                return "mixed";
         }
     }
 
@@ -125,7 +137,8 @@ export class GraphQLConnection {
 
     async request<T = Record<string, unknown>>(document: string, variables?: Record<string, unknown>): Promise<T> {
         try {
-            const response = await this.client.request<T>(document, variables);
+            const headers = this.headers?.();
+            const response = await this.client.request<T>(document, variables, headers);
             if (response.errors?.length) {
                 this.reportAndThrow(new Error(this.formatGraphQLErrors(response.errors)));
             }
@@ -161,8 +174,8 @@ export interface GraphQLResource {
 
     // queries:
     count: (filter: FieldFilter[]) => GraphQLQueryMapping<number>;
-    find: (filter: FieldFilter[], options: FindOptions) => GraphQLQueryMapping<BaseRecord[]>;
-    findOne: (id: string | number) => GraphQLQueryMapping<BaseRecord | null>;
+    find: (filter: FieldFilter[], options: FindOptions) => GraphQLQueryMapping<ParamsType[]>;
+    findOne: (id: string | number) => GraphQLQueryMapping<ParamsType | null>;
 
     // mutations:
     create?: (record: ParamsType) => GraphQLQueryMapping<ParamsType>;
@@ -212,7 +225,7 @@ class GraphQLResourceAdapter extends BaseResource {
     }
 
     databaseName(): string {
-        return this.connection.connection.name;
+        return this.connection.name;
     }
 
     databaseType(): string {
@@ -240,12 +253,17 @@ class GraphQLResourceAdapter extends BaseResource {
     async find(filter: Filter, options: FindOptions): Promise<BaseRecord[]> {
         const fieldFilter = this.mapFilter(filter);
         const mapping = this.rawResource.find(fieldFilter, options);
-        return this.executeMapping(mapping);
+        const result = await this.executeMapping(mapping);
+        return result.map((record) => new BaseRecord(record, this));
     }
 
     async findOne(id: string | number): Promise<BaseRecord | null> {
         const mapping = this.rawResource.findOne(id);
-        return this.executeMapping(mapping);
+        const result = await this.executeMapping(mapping);
+        if (result) {
+            return new BaseRecord(result, this);
+        }
+        return null;
     }
 
     async findMany(ids: Array<string | number>): Promise<BaseRecord[]> {

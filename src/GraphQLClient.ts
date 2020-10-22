@@ -11,19 +11,27 @@ export class GraphQLClient {
         this.axios = Axios.create({
             baseURL: endpoint,
             headers: {
-                "content-type": "application/graphql+json"
+                "content-type": "application/graphql+json",
             }
         });
     }
 
-    async request<T = Record<string, unknown>>(query: string, variables?: Record<string, unknown>): Promise<GraphQLClientResponse<T>> {
+    async request<T = Record<string, unknown>>(
+        query: string,
+        variables?: Record<string, unknown>,
+        headers?: Record<string, string>
+    ): Promise<GraphQLClientResponse<T>> {
         const body = {
             query,
             variables
         };
         const response = await this.axios.post(
             "/",
-            body
+            body,
+            {
+                headers
+            }
+            
         );
         return response.data;
     }
