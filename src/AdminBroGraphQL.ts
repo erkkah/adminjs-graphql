@@ -18,7 +18,6 @@ import {
     visit,
     TypeInfo,
     visitWithTypeInfo,
-    getNamedType,
     GraphQLNamedType,
     isInputType,
     coerceValue,
@@ -27,6 +26,9 @@ import {
     GraphQLFormattedError,
     OperationDefinitionNode,
     FragmentDefinitionNode,
+    isWrappingType,
+    GraphQLOutputType,
+    GraphQLEnumType,
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -100,28 +102,41 @@ export class GraphQLConnection {
                                 }
                                 const fieldName = field.name.value;
 
-                                const graphQLType = typeInfo.getType();
+                                let graphQLType = typeInfo.getType();
                                 if (!graphQLType) {
                                     throw new Error(`Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`);
                                 }
-                                const namedType = getNamedType(graphQLType);
+                                while (isWrappingType(graphQLType)) {
+                                    graphQLType = graphQLType.ofType as GraphQLOutputType;
+                                }
+                                const namedType = graphQLType;
 
-                                const propertyID = [...path.slice(1), fieldName].join(".");
-                                const propertyType = resource.fieldTypeOverrides?.[propertyID] ||
+                                let enumValues: string[] | undefined;
+                                if (namedType instanceof GraphQLEnumType) {
+                                    enumValues = namedType.getValues().map((val) => val.value);
+                                }
+
+                                const propertyPath = [...path, fieldName].join(".");
+                                const propertyType =
+                                    (propertyPath in (resource.referenceFields ?? {}) && "reference") ||
+                                    resource.fieldTypeOverrides?.[propertyPath] ||
+                                    (enumValues?.length && "string") ||
                                     GraphQLConnection.graphQLTypeToPropertyType(namedType);
 
                                 // Add field to topmost object
                                 objectStack[objectStack.length - 1].push(
                                     new GraphQLPropertyAdapter({
-                                        path: propertyID,
+                                        path: fieldName,
                                         type: propertyType,
                                         isId: namedType.name === "ID",
-                                        isSortable: resource.sortableFields?.includes(propertyID) ?? true,
-                                        position: resource.fieldOrder?.indexOf(propertyID) ?? 0,
+                                        isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
+                                        position: resource.fieldOrder?.indexOf(propertyPath) ?? 0,
+                                        referencing: resource.referenceFields?.[propertyPath],
+                                        enumValues,
                                     })
                                 );
 
-                                resource.typeMap?.set(propertyID, namedType);
+                                resource.typeMap?.set(propertyPath, namedType);
                                 if (field.selectionSet) {
                                     path.push(fieldName);
                                     objectStack.push([]);
@@ -159,6 +174,7 @@ export class GraphQLConnection {
     private static graphQLTypeToPropertyType(graphQLType: GraphQLNamedType): PropertyType {
         switch (graphQLType.name) {
             case "String":
+            case "ID":
                 return "string";
             case "Float":
                 return "float";
@@ -168,8 +184,6 @@ export class GraphQLConnection {
                 return "boolean";
             case "Date":
                 return "datetime";
-            case "ID":
-                return "string";
             default:
                 return "mixed";
         }
@@ -229,6 +243,7 @@ export interface GraphQLResource {
     sortableFields?: string[];
     fieldOrder?: string[];
     fieldTypeOverrides?: { [field: string]: PropertyType };
+    referenceFields?: { [field: string]: string };
 
     // queries:
     count: (filter: FieldFilter[]) => GraphQLQueryMapping<number>;
@@ -302,6 +317,22 @@ class GraphQLResourceAdapter extends BaseResource {
         return this.propertyMap.get(path) ?? null;
     }
 
+    async populate(records: Array<BaseRecord>, property: BaseProperty): Promise<Array<BaseRecord>> {
+        const keys = records.map((record) => record.param(property.name()));
+
+        const subrecords = await this.findMany(keys);
+        const recordMap = new Map(subrecords.map((record) => [record.id(), record]));
+
+        return records.map((rec) => {
+            const key = rec.param(property.name());
+            const subrecord = recordMap.get(key);
+            if (subrecord) {
+                rec.populated[property.name()] = subrecord;
+            }
+            return rec;
+        });
+    }
+
     async count(filter: Filter): Promise<number> {
         try {
             const fieldFilter = this.mapFilter(filter);
@@ -345,7 +376,7 @@ class GraphQLResourceAdapter extends BaseResource {
 
     async create(params: ParamsType): Promise<ParamsType> {
         try {
-            const mapping = this.rawResource.create?.(params);
+            const mapping = this.rawResource.create?.(inflateParams(params));
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
             }
@@ -357,7 +388,7 @@ class GraphQLResourceAdapter extends BaseResource {
 
     async update(id: string, params: ParamsType): Promise<ParamsType> {
         try {
-            const mapping = this.rawResource.update?.(id, params);
+            const mapping = this.rawResource.update?.(id, inflateParams(params));
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
             }
@@ -432,7 +463,25 @@ class GraphQLResourceAdapter extends BaseResource {
 
 }
 
+function inflateParams(params: Record<string, unknown>): Record<string, unknown> {
+    const record: Record<string, unknown> = {};
 
+    for (const path of Object.keys(params)) {
+        const steps = path.split(".");
+        let object = record;
+        while (steps.length > 1) {
+            const step = steps.shift();
+            if (step === undefined) {
+                break;
+            }
+            object[step] = object[step] || {};
+            object = object[step] as typeof object;
+        }
+        object[steps[0]] = params[path];
+    }
+
+    return record;
+}
 
 interface BasePropertyAttrs {
     path: string;
@@ -444,9 +493,13 @@ interface BasePropertyAttrs {
 
 class GraphQLPropertyAdapter extends BaseProperty {
     private _subProperties: BaseProperty[] = [];
+    private _referencing?: string;
+    private _enumValues?: string[];
 
-    constructor(property: BasePropertyAttrs) {
+    constructor(property: BasePropertyAttrs & { referencing?: string; enumValues?: string[] }) {
         super(property);
+        this._referencing = property.referencing;
+        this._enumValues = property.enumValues;
     }
 
     setSubProperties(properties: BaseProperty[]) {
@@ -458,7 +511,11 @@ class GraphQLPropertyAdapter extends BaseProperty {
     }
 
     reference(): string | null {
-        return "";
+        return this._referencing || null;
+    }
+
+    availableValues(): string[] | null {
+        return this._enumValues ?? super.availableValues();
     }
 }
 
