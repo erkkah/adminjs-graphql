@@ -237,15 +237,30 @@ function inflateParams(params: Record<string, unknown>): Record<string, unknown>
     for (const path of Object.keys(params)) {
         const steps = path.split(".");
         let object = record;
+        let index = -1;
         while (steps.length > 1) {
             const step = steps.shift();
+            let nextObject = {};
             if (step === undefined) {
                 break;
             }
-            object[step] = object[step] || {};
+            if (steps.length === 1) {
+                index = parseInt(steps[0]);
+                if (!isNaN(index)) {
+                    nextObject = [];
+                }
+            }
+            object[step] = object[step] || nextObject;
             object = object[step] as typeof object;
         }
-        object[steps[0]] = params[path];
+
+        if (object instanceof Array) {
+            object.length = index + 1;
+            object[index] = params[path];
+        } else {
+            object[steps[0]] = params[path];
+        }
+
     }
 
     return record;

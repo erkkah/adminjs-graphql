@@ -20,6 +20,7 @@ import {
     isWrappingType,
     GraphQLOutputType,
     GraphQLEnumType,
+    GraphQLList,
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -99,7 +100,13 @@ export class GraphQLConnection {
                                 if (!graphQLType) {
                                     throw new Error(`Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`);
                                 }
+
+                                let isArray = false;
+
                                 while (isWrappingType(graphQLType)) {
+                                    if (graphQLType instanceof GraphQLList) {
+                                        isArray = true;
+                                    }
                                     graphQLType = graphQLType.ofType as GraphQLOutputType;
                                 }
                                 const namedType = graphQLType;
@@ -126,6 +133,7 @@ export class GraphQLConnection {
                                         position: resource.fieldOrder?.indexOf(propertyPath) ?? 0,
                                         referencing: resource.referenceFields?.[propertyPath],
                                         enumValues,
+                                        isArray
                                     })
                                 );
 

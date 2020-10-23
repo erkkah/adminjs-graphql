@@ -12,11 +12,13 @@ export class GraphQLPropertyAdapter extends BaseProperty {
     private _subProperties: BaseProperty[] = [];
     private _referencing?: string;
     private _enumValues?: string[];
+    private _isArray?: boolean;
 
-    constructor(property: BasePropertyAttrs & { referencing?: string; enumValues?: string[] }) {
+    constructor(property: BasePropertyAttrs & { referencing?: string; enumValues?: string[]; isArray?: boolean }) {
         super(property);
         this._referencing = property.referencing;
         this._enumValues = property.enumValues;
+        this._isArray = property.isArray;
     }
 
     setSubProperties(properties: BaseProperty[]): void {
@@ -33,5 +35,9 @@ export class GraphQLPropertyAdapter extends BaseProperty {
 
     availableValues(): string[] | null {
         return this._enumValues ?? super.availableValues();
+    }
+
+    isArray(): boolean {
+        return this._isArray ?? false;
     }
 }
