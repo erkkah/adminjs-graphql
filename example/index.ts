@@ -9,8 +9,8 @@ const connection = new GraphQLConnection(
 
             count: (filter: FieldFilter[]) => ({
                 query: `{
-                thingsCount(matching: $filter)
-            }`,
+                    thingsCount(matching: $filter)
+                }`,
                 variables: {
                     filter
                 },
@@ -21,12 +21,12 @@ const connection = new GraphQLConnection(
 
             find: (filter: FieldFilter[], options: FindOptions) => ({
                 query: `{
-                things(matching: $filter, offset: $offset, limit: $limit) {
-                    id
-                    name
-                    size
-                }
-            }`,
+                    things(matching: $filter, offset: $offset, limit: $limit) {
+                        id
+                        name
+                        size
+                    }
+                }`,
                 variables: {
                     filter,
                     offset: options.offset,
@@ -39,12 +39,12 @@ const connection = new GraphQLConnection(
 
             findOne: (id: string | number) => ({
                 query: `{
-                thingById(id: $id){
-                    id
-                    name
-                    size
-                }
-            }`,
+                    thingById(id: $id){
+                        id
+                        name
+                        size
+                    }
+                }`,
                 variables: {
                     id
                 },
