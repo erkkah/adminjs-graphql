@@ -24,7 +24,9 @@ import {
     coerceValue,
     IntrospectionQuery,
     DocumentNode,
-    GraphQLFormattedError
+    GraphQLFormattedError,
+    OperationDefinitionNode,
+    FragmentDefinitionNode,
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -64,31 +66,52 @@ export class GraphQLConnection {
             this.resources.map((res) => res as InternalGraphQLResource)
                 .map(async (resource) => {
                     const findMapping = resource.findOne(42);
-                    const parsed =
+                    let parsed =
                         (typeof findMapping.query === "string")
                             ? parse(findMapping.query)
                             : findMapping.query;
                     const fullSchema = await this.fetchSchema();
                     const typeInfo = new TypeInfo(fullSchema);
                     const path: string[] = [];
-                    resource.properties = [];
                     resource.typeMap = new Map();
+                    resource.connection = this;
+                    resource.tag = "GraphQLResource";
 
-                    visit(parsed, visitWithTypeInfo(typeInfo, {
-                        Field: (field) => {
-                            const fieldName = field.alias?.value ?? field.name.value;
-                            if (field.selectionSet) {
-                                path.push(fieldName);
-                            } else {
+                    parsed = expandFragments(parsed);
+                    const operationDefinition = parsed.definitions.find((def): def is OperationDefinitionNode => def.kind === "OperationDefinition");
+                    if (!operationDefinition) {
+                        throw new Error("Document without operation is not allowed");
+                    }
+                    const toplevelSelections = operationDefinition.selectionSet.selections;
+                    if (toplevelSelections.length !== 1) {
+                        throw new Error("Top level selections must contain exactly one field");
+                    }
+                    const topNode = operationDefinition;
+
+                    // Initialize with "root" object
+                    const objectStack: GraphQLPropertyAdapter[][] = [[]];
+
+                    visit(topNode, visitWithTypeInfo(typeInfo, {
+                        Field: {
+                            enter: (field) => {
+                                const parentType = typeInfo.getParentType()?.name;
+                                if (parentType === "Query" || parentType === "Mutation") {
+                                    return;
+                                }
+                                const fieldName = field.name.value;
+
                                 const graphQLType = typeInfo.getType();
                                 if (!graphQLType) {
                                     throw new Error(`Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`);
                                 }
                                 const namedType = getNamedType(graphQLType);
+
                                 const propertyID = [...path.slice(1), fieldName].join(".");
                                 const propertyType = resource.fieldTypeOverrides?.[propertyID] ||
                                     GraphQLConnection.graphQLTypeToPropertyType(namedType);
-                                resource.properties?.push(
+
+                                // Add field to topmost object
+                                objectStack[objectStack.length - 1].push(
                                     new GraphQLPropertyAdapter({
                                         path: propertyID,
                                         type: propertyType,
@@ -97,12 +120,33 @@ export class GraphQLConnection {
                                         position: resource.fieldOrder?.indexOf(propertyID) ?? 0,
                                     })
                                 );
+
                                 resource.typeMap?.set(propertyID, namedType);
-                                resource.connection = this;
-                                resource.tag = "GraphQLResource";
+                                if (field.selectionSet) {
+                                    path.push(fieldName);
+                                    objectStack.push([]);
+                                }
+                            },
+                            leave: (field) => {
+                                const parentType = typeInfo.getParentType()?.name;
+                                if (parentType === "Query" || parentType === "Mutation") {
+                                    return;
+                                }
+                                if (field.selectionSet) {
+                                    path.pop();
+                                    const currentObject = objectStack.pop();
+                                    if (currentObject === undefined) {
+                                        throw new Error("Unexpected empty object");
+                                    }
+                                    const lastObject = objectStack[objectStack.length - 1];
+                                    const lastProperty = lastObject[lastObject.length - 1];
+                                    lastProperty.setSubProperties(currentObject);
+                                }
                             }
-                        }
+                        },
                     }));
+
+                    resource.properties = objectStack.pop();
                 }));
     }
 
@@ -157,6 +201,20 @@ export class GraphQLConnection {
         this.onError?.(error);
         throw error;
     }
+}
+
+function expandFragments(node: DocumentNode): DocumentNode {
+    const fragmentDefinitions = node.definitions.filter((def): def is FragmentDefinitionNode => def.kind === "FragmentDefinition");
+
+    return visit(node, {
+        FragmentSpread: (spread) => {
+            const fragment = fragmentDefinitions.find((def) => def.name.value === spread.name.value);
+            if (!fragment) {
+                throw new Error("Invalid spread reference");
+            }
+            return fragment.selectionSet;
+        }
+    });
 }
 
 export interface GraphQLQueryMapping<T> {
@@ -385,8 +443,22 @@ interface BasePropertyAttrs {
 }
 
 class GraphQLPropertyAdapter extends BaseProperty {
+    private _subProperties: BaseProperty[] = [];
+
     constructor(property: BasePropertyAttrs) {
         super(property);
+    }
+
+    setSubProperties(properties: BaseProperty[]) {
+        this._subProperties = properties;
+    }
+
+    subProperties(): BaseProperty[] {
+        return this._subProperties;
+    }
+
+    reference(): string | null {
+        return "";
     }
 }
 
