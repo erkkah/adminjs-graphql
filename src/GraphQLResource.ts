@@ -37,10 +37,13 @@ export interface GraphQLResource {
     delete?: (id: string | number) => GraphQLQueryMapping<void>;
 }
 
+export type FilterOperation = "GTE" | "LTE" | "EQ";
+
 export interface FieldFilter {
     field: string;
-    from: string | number | Date;
-    to: string | number | Date;
+    is: FilterOperation;
+    than?: string;
+    to?: string;
 }
 
 export type InternalGraphQLResource = GraphQLResource & {
@@ -220,11 +223,26 @@ export class GraphQLResourceAdapter extends BaseResource {
                 );
             }
 
-            mapped.push({
-                field: element.property.path(),
-                from: coercedFrom.value,
-                to: coercedTo.value,
-            });
+            if (from === to) {
+                mapped.push({
+                    field: element.property.path(),
+                    is: "EQ",
+                    to: coercedFrom.value,
+                });
+            } else {
+                mapped.push(
+                    {
+                        field: element.property.path(),
+                        is: "GTE",
+                        to: coercedFrom.value,
+                    },
+                    {
+                        field: element.property.path(),
+                        is: "LTE",
+                        to: coercedTo.value,
+                    }
+                );
+            }
             return mapped;
         }, []);
     }
