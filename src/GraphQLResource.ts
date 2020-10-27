@@ -197,7 +197,11 @@ export class GraphQLResourceAdapter extends BaseResource {
         const result = await this.connection.request(queryString, mapping.variables);
         const parsed = mapping.parseResult(result);
         if (!this.rawResource.makeSubproperties) {
-            return deflateParams(parsed);
+            if (parsed instanceof Array) {
+                return parsed.map((p) => deflateParams(p)) as unknown as T;
+            } else {
+                return deflateParams(parsed);
+            }
         }
         return parsed;
     }

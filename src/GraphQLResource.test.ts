@@ -2,19 +2,19 @@ import { _testing } from "../src/GraphQLResource";
 const { deflateParams, inflateParams } = _testing;
 
 describe("Resource parameter deflation", () => {
-    it("Deflates string OK", () => {
+    it("Deflates string", () => {
         const input = "a string";
         const deflated = deflateParams(input);
         expect(deflated).toEqual(input);
     });
 
-    it("Deflates undefined OK", () => {
+    it("Deflates undefined", () => {
         const input = undefined;
         const deflated = deflateParams(input);
         expect(deflated).toEqual(input);
     });
 
-    it("Deflates one level object OK", () => {
+    it("Deflates one level object", () => {
         const input = {
             a: 1,
             b: "bee"
@@ -23,7 +23,7 @@ describe("Resource parameter deflation", () => {
         expect(deflated).toEqual(input);
     });
 
-    it("Deflates deep object OK", () => {
+    it("Deflates deep object", () => {
         const input = {
             a: 1,
             b: "bee",
@@ -41,10 +41,11 @@ describe("Resource parameter deflation", () => {
         const deflated = deflateParams(input);
         expect(deflated).toEqual(expected);
     });
+
 });
 
 describe("Resource parameter inflation", () => {
-    it("Inflates one level object OK", () => {
+    it("Inflates one level object", () => {
         const input = {
             a: 1,
             b: "bee"
@@ -54,7 +55,7 @@ describe("Resource parameter inflation", () => {
         expect(inflated).toEqual(input);
     });
 
-    it("Inflates deep object OK", () => {
+    it("Inflates deep object", () => {
         const input = {
             a: 1,
             b: "bee",
@@ -75,7 +76,7 @@ describe("Resource parameter inflation", () => {
         expect(inflated).toEqual(expected);
     });
 
-    it("Inflates nested array OK", () => {
+    it("Inflates nested array", () => {
         const input = {
             "array.0": "zero",
             "array.3": "three",
