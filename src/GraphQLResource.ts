@@ -195,7 +195,11 @@ export class GraphQLResourceAdapter extends BaseResource {
             this.connection.reportAndThrow(new Error("Unexpected parsed query without body"));
         }
         const result = await this.connection.request(queryString, mapping.variables);
-        return mapping.parseResult(result);
+        const parsed = mapping.parseResult(result);
+        if (!this.rawResource.makeSubproperties) {
+            return deflateParams(parsed);
+        }
+        return parsed;
     }
 
     private mapFilter(filter: Filter): FieldFilter[] {
@@ -284,3 +288,31 @@ function inflateParams(params: Record<string, unknown>): Record<string, unknown>
 
     return record;
 }
+
+function deflateParams<T>(params: T): T {
+    if (typeof params !== "object" || params == null) {
+        return params;
+    }
+
+    const typed = params as Record<string, unknown>;
+    const record: Record<string, unknown> = {};
+
+    for (const key of Object.keys(typed)) {
+        const param = typed[key];
+        if (typeof param === "object" && param !== null) {
+            const deflated = deflateParams<Record<string, unknown>>(param as Record<string, unknown>);
+            for (const subKey of Object.keys(deflated)) {
+                record[`${key}.${subKey}`] = deflated[subKey];
+            }
+        } else {
+            record[key] = param;
+        }
+    }
+
+    return record as T;
+}
+
+export const _testing = {
+    inflateParams,
+    deflateParams,
+};
