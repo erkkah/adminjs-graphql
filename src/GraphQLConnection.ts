@@ -125,18 +125,20 @@ export class GraphQLConnection {
                                 GraphQLConnection.graphQLTypeToPropertyType(namedType);
 
                             // Add field to topmost object
-                            objectStack[objectStack.length - 1].push(
-                                new GraphQLPropertyAdapter({
-                                    path: fieldName,
-                                    type: propertyType,
-                                    isId: namedType.name === "ID" && propertyType !== "reference",
-                                    isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
-                                    position: resource.fieldOrder?.indexOf(propertyPath) ?? 0,
-                                    referencing: resource.referenceFields?.[propertyPath],
-                                    enumValues,
-                                    isArray
-                                })
-                            );
+                            if (resource.makeSubproperties || propertyType !== "mixed") {
+                                objectStack[objectStack.length - 1].push(
+                                    new GraphQLPropertyAdapter({
+                                        path: resource.makeSubproperties ? fieldName : propertyPath,
+                                        type: propertyType,
+                                        isId: namedType.name === "ID" && propertyType !== "reference",
+                                        isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
+                                        position: resource.fieldOrder?.indexOf(propertyPath) ?? 0,
+                                        referencing: resource.referenceFields?.[propertyPath],
+                                        enumValues,
+                                        isArray
+                                    })
+                                );
+                            }
 
                             resource.typeMap?.set(propertyPath, namedType);
                             if (field.selectionSet) {
@@ -156,8 +158,12 @@ export class GraphQLConnection {
                                     throw new Error("Unexpected empty object");
                                 }
                                 const lastObject = objectStack[objectStack.length - 1];
-                                const lastProperty = lastObject[lastObject.length - 1];
-                                lastProperty.setSubProperties(currentObject);
+                                if (resource.makeSubproperties) {
+                                    const lastProperty = lastObject[lastObject.length - 1];
+                                    lastProperty.setSubProperties(currentObject);
+                                } else {
+                                    lastObject.push(...currentObject);
+                                }
                             }
                         }
                     },

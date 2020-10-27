@@ -25,6 +25,7 @@ export interface GraphQLResource {
     fieldOrder?: string[];
     fieldTypes?: { [field: string]: PropertyType };
     referenceFields?: { [field: string]: string };
+    makeSubproperties?: boolean;
 
     // queries:
     count: (filter: FieldFilter[]) => GraphQLQueryMapping<number>;
