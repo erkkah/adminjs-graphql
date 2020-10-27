@@ -120,7 +120,7 @@ export class GraphQLConnection {
                             const propertyPath = [...path, fieldName].join(".");
                             const propertyType =
                                 (propertyPath in (resource.referenceFields ?? {}) && "reference") ||
-                                resource.fieldTypeOverrides?.[propertyPath] ||
+                                resource.fieldTypes?.[propertyPath] ||
                                 (enumValues?.length && "string") ||
                                 GraphQLConnection.graphQLTypeToPropertyType(namedType);
 

@@ -14,7 +14,11 @@ export class GraphQLPropertyAdapter extends BaseProperty {
     private _enumValues?: string[];
     private _isArray?: boolean;
 
-    constructor(property: BasePropertyAttrs & { referencing?: string; enumValues?: string[]; isArray?: boolean }) {
+    constructor(property: BasePropertyAttrs & {
+        referencing?: string;
+        enumValues?: string[];
+        isArray?: boolean
+    }) {
         super(property);
         this._referencing = property.referencing;
         this._enumValues = property.enumValues;
@@ -40,4 +44,5 @@ export class GraphQLPropertyAdapter extends BaseProperty {
     isArray(): boolean {
         return this._isArray ?? false;
     }
+
 }

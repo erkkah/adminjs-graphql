@@ -23,7 +23,7 @@ export interface GraphQLResource {
 
     sortableFields?: string[];
     fieldOrder?: string[];
-    fieldTypeOverrides?: { [field: string]: PropertyType };
+    fieldTypes?: { [field: string]: PropertyType };
     referenceFields?: { [field: string]: string };
 
     // queries:
