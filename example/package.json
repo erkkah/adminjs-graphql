@@ -1,0 +1,27 @@
+{
+  "name": "example",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "ts-node server.ts"
+  },
+  "author": "Erik Agsjö",
+  "license": "ISC",
+  "dependencies": {
+    "@admin-bro/koa": "^1.1.1",
+    "admin-bro": "^3.2.5",
+    "admin-bro-graphql": "file:..",
+    "graphql-tag": "^2.11.0",
+    "koa": "^2.13.0",
+    "koa2-formidable": "^1.0.2",
+    "react": "^16",
+    "react-dom": "^16",
+    "tiny-graphql-koa": "^0.6.0"
+  },
+  "devDependencies": {
+    "@types/koa": "^2.11.6",
+    "ts-node": "^9.0.0",
+    "typescript": "^4.0.5"
+  }
+}
