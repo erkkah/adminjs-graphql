@@ -13,6 +13,9 @@ const thingResource = configureResource("Thing",
         {
             ID
             name
+            another {
+                ID
+            }
         }
     `,
     },
@@ -25,9 +28,21 @@ const thingResource = configureResource("Thing",
     }
 );
 
+const otherResource = configureResource("Other",
+    {
+        fragment: gql`
+        {
+            ID
+            name
+        }
+    `
+    },
+);
+
 const connection = new GraphQLConnection(
     [
-        thingResource.resource
+        thingResource.resource,
+        otherResource.resource
     ],
     { name: "My stuff", url: "http://localhost:3000/graphql" }
 );
@@ -37,7 +52,8 @@ connection.init().then(() => {
 
     const admin = new AdminBro({
         resources: [
-            thingResource.configuration(connection)
+            thingResource.configuration(connection),
+            otherResource.configuration(connection)
         ],
         rootPath: "/admin",
     });

@@ -22,7 +22,6 @@ export interface GraphQLResource {
     id: string;
 
     sortableFields?: string[];
-    fieldOrder?: string[];
     fieldTypes?: { [field: string]: PropertyType };
     referenceFields?: { [field: string]: string };
     makeSubproperties?: boolean;
@@ -90,18 +89,34 @@ export class GraphQLResourceAdapter extends BaseResource {
     }
 
     async populate(records: Array<BaseRecord>, property: BaseProperty): Promise<Array<BaseRecord>> {
-        const keys = records.map((record) => record.param(property.name()));
+        const propertyName = property.name();
 
+        const recordIDs = records
+            .map((record) => ({
+                rec: record,
+                key: record.param(propertyName),
+            }))
+            .map((record) => {
+                if (typeof record.key === "object") {
+                    const fields = Object.values(record.key);
+                    if (fields.length === 1) {
+                        record.key = fields[0];
+                    }
+                }
+                return record;
+            });
+
+        const keys = recordIDs.map((rec) => rec.key);
         const subrecords = await this.findMany(keys);
         const recordMap = new Map(subrecords.map((record) => [record.id(), record]));
 
-        return records.map((rec) => {
-            const key = rec.param(property.name());
+        return recordIDs.map((rec) => {
+            const key = rec.key;
             const subrecord = recordMap.get(key);
             if (subrecord) {
-                rec.populated[property.name()] = subrecord;
+                rec.rec.populated[propertyName] = subrecord;
             }
-            return rec;
+            return rec.rec;
         });
     }
 

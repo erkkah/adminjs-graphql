@@ -8,6 +8,12 @@ const app = new Koa();
 interface Thing {
     ID?: string;
     name: string;
+    another: Other;
+}
+
+interface Other {
+    ID?: string;
+    name: string;
 }
 
 type FilterOperation = "EQ" | "LTE" | "GTE";
@@ -19,14 +25,27 @@ interface Filter {
     to?: string;
 }
 
+const others: Other[] = [
+    {
+        ID: "74",
+        name: "Nail"
+    },
+    {
+        ID: "91",
+        name: "Tooth"
+    }
+];
+
 const things: Thing[] = [
     {
         ID: "0",
-        name: "Hammer"
+        name: "Hammer",
+        another: others[0]
     },
     {
         ID: "1",
-        name: "Saw"
+        name: "Saw",
+        another: others[1]
     }
 ];
 
@@ -36,10 +55,17 @@ const graphqlServer = makeServerMiddleware({
             type Thing {
                 ID: ID!
                 name: String!
+                another: Other!
+            }
+
+            type Other {
+                ID: ID!
+                name: String!
             }
 
             input ThingInput {
                 name: String!
+                anotherID: ID!
             }
 
             enum FilterOperation {
@@ -59,6 +85,10 @@ const graphqlServer = makeServerMiddleware({
                 things(filter: [FilterInput!], offset: Int! = 0, limit: Int! = 10): [Thing!]
                 thing(ID: ID!): Thing
                 thingCount(filter: [FilterInput!]): Int!
+
+                others(filter: [FilterInput!], offset: Int! = 0, limit: Int! = 10): [Other!]
+                other(ID: ID!): Other
+                otherCount(filter: [FilterInput!]): Int!
             }
 
             type Mutation {
@@ -79,6 +109,15 @@ const graphqlServer = makeServerMiddleware({
                     return things;
                 },
                 thingCount: () => things.length,
+
+                other: (_parent, { ID }: { ID: string }) =>
+                    others.find((other) => other.ID === ID),
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                others: (_parent, _args: { filter: Filter }) => {
+                    // Filtering is not implemented
+                    return others;
+                },
+                otherCount: () => others.length,
             },
             Mutation: {
                 createThing: () => {

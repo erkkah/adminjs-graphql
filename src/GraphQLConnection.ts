@@ -21,6 +21,8 @@ import {
     GraphQLOutputType,
     GraphQLEnumType,
     GraphQLList,
+    GraphQLObjectType,
+    GraphQLID,
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -118,11 +120,33 @@ export class GraphQLConnection {
                             }
 
                             const propertyPath = [...path, fieldName].join(".");
-                            const propertyType =
-                                (propertyPath in (resource.referenceFields ?? {}) && "reference") ||
-                                resource.fieldTypes?.[propertyPath] ||
-                                (enumValues?.length && "string") ||
-                                GraphQLConnection.graphQLTypeToPropertyType(namedType);
+
+                            let propertyType: PropertyType | undefined;
+                            let referencing: string | undefined;
+
+                            if (namedType instanceof GraphQLObjectType) {
+                                const objectFields = namedType.getFields();
+                                const selections = field.selectionSet?.selections ?? [];
+                                if (selections.length === 1 && selections[0].kind === "Field") {
+                                    const fieldName = selections[0].name.value;
+                                    let fieldType = objectFields[fieldName].type;
+                                    while (isWrappingType(fieldType)) {
+                                        fieldType = fieldType.ofType;
+                                    }
+                                    if (fieldType === GraphQLID) {
+                                        propertyType = "reference";
+                                        referencing = namedType.name;
+                                    }
+                                }
+                            }
+
+                            if (!propertyType) {
+                                propertyType =
+                                    (propertyPath in (resource.referenceFields ?? {}) && "reference") ||
+                                    resource.fieldTypes?.[propertyPath] ||
+                                    (enumValues?.length && "string") ||
+                                    GraphQLConnection.graphQLTypeToPropertyType(namedType);
+                            }
 
                             // Add field to topmost object
                             if (resource.makeSubproperties || propertyType !== "mixed") {
@@ -132,8 +156,7 @@ export class GraphQLConnection {
                                         type: propertyType,
                                         isId: namedType.name === "ID" && propertyType !== "reference",
                                         isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
-                                        position: resource.fieldOrder?.indexOf(propertyPath) ?? 0,
-                                        referencing: resource.referenceFields?.[propertyPath],
+                                        referencing: referencing ?? resource.referenceFields?.[propertyPath],
                                         enumValues,
                                         isArray
                                     })
