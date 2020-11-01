@@ -1,5 +1,5 @@
 import { DocumentNode, GraphQLNamedType, isInputType, coerceValue } from "graphql";
-import { PropertyType, ParamsType, BaseResource, BaseRecord, BaseProperty, Filter, ForbiddenError } from "admin-bro";
+import { PropertyType, ParamsType, BaseResource, BaseRecord, Filter, ForbiddenError } from "admin-bro";
 import { GraphQLConnection } from ".";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";
 
@@ -86,44 +86,6 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     property(path: string): GraphQLPropertyAdapter | null {
         return this.propertyMap.get(path) ?? null;
-    }
-
-    async populate(records: Array<BaseRecord>, property: BaseProperty): Promise<Array<BaseRecord>> {
-        const propertyName = property.name();
-
-        const recordIDs = records
-            .map((record) => {
-                const propertyValue = record.param(propertyName);
-                return {
-                    rec: record,
-                    keys: property.isArray() ? propertyValue : [propertyValue],
-                };
-            })
-            .map((record) => {
-                record.keys = record.keys.map((key: unknown) => deflateReference(key));
-                return record;
-            });
-
-        const keys = recordIDs.flatMap((rec) => rec.keys);
-        const keySet = new Set(keys);
-        const subrecords = await this.findMany([...keySet.values()]);
-        const recordMap = new Map(subrecords.map((record) => [record.id(), record]));
-
-        return recordIDs.map((rec) => {
-            const keys = rec.keys;
-            let subrecord: BaseRecord;
-
-            const subrecords: BaseRecord[] = keys.map((key: string) => recordMap.get(key));
-
-            if (property.isArray()) {
-                subrecord = new BaseRecord(subrecords.map((record) => record.params), this);
-            } else {
-                subrecord = subrecords[0];
-            }
-
-            rec.rec.populated[propertyName] = subrecord;
-            return rec.rec;
-        });
     }
 
     async count(filter: Filter): Promise<number> {
@@ -314,7 +276,7 @@ function inflateParams(params: Record<string, unknown>): Record<string, unknown>
     return record;
 }
 
-function deflateParams<T>(params: T): T {
+function deflateParams<T>(params: T, IDField = "ID"): T {
     if (typeof params !== "object" || params == null) {
         return params;
     }
@@ -323,15 +285,20 @@ function deflateParams<T>(params: T): T {
     const record: Record<string, unknown> = {};
 
     for (const key of Object.keys(typed)) {
-        const param = typed[key];
+        let param = typed[key];
         if (typeof param === "object" && param !== null) {
             const deflated = deflateParams<Record<string, unknown>>(param as Record<string, unknown>);
-            for (const subKey of Object.keys(deflated)) {
-                record[`${key}.${subKey}`] = deflated[subKey];
+            const deflatedKeys = Object.keys(deflated);
+            if (deflatedKeys.length === 1 && IDField in deflated) {
+                // Reference hack!
+                param = Object.values(deflated)[0];
+            } else {
+                for (const subKey of deflatedKeys) {
+                    record[`${key}.${subKey}`] = deflated[subKey];
+                }
             }
-        } else {
-            record[key] = param;
         }
+        record[key] = param;
     }
 
     return record as T;
