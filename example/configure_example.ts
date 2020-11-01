@@ -44,7 +44,8 @@ const connection = new GraphQLConnection(
         thingResource.resource,
         otherResource.resource
     ],
-    { name: "My stuff", url: "http://localhost:3000/graphql" }
+    { name: "My stuff", url: "http://localhost:3000/graphql" },
+    (e) => console.log(e)
 );
 
 connection.init().then(() => {

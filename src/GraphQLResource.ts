@@ -92,30 +92,36 @@ export class GraphQLResourceAdapter extends BaseResource {
         const propertyName = property.name();
 
         const recordIDs = records
-            .map((record) => ({
-                rec: record,
-                key: record.param(propertyName),
-            }))
             .map((record) => {
-                if (typeof record.key === "object") {
-                    const fields = Object.values(record.key);
-                    if (fields.length === 1) {
-                        record.key = fields[0];
-                    }
-                }
+                const propertyValue = record.param(propertyName);
+                return {
+                    rec: record,
+                    keys: property.isArray() ? propertyValue : [propertyValue],
+                };
+            })
+            .map((record) => {
+                record.keys = record.keys.map((key: unknown) => deflateReference(key));
                 return record;
             });
 
-        const keys = recordIDs.map((rec) => rec.key);
-        const subrecords = await this.findMany(keys);
+        const keys = recordIDs.flatMap((rec) => rec.keys);
+        const keySet = new Set(keys);
+        const subrecords = await this.findMany([...keySet.values()]);
         const recordMap = new Map(subrecords.map((record) => [record.id(), record]));
 
         return recordIDs.map((rec) => {
-            const key = rec.key;
-            const subrecord = recordMap.get(key);
-            if (subrecord) {
-                rec.rec.populated[propertyName] = subrecord;
+            const keys = rec.keys;
+            let subrecord: BaseRecord;
+
+            const subrecords: BaseRecord[] = keys.map((key: string) => recordMap.get(key));
+
+            if (property.isArray()) {
+                subrecord = new BaseRecord(subrecords.map((record) => record.params), this);
+            } else {
+                subrecord = subrecords[0];
             }
+
+            rec.rec.populated[propertyName] = subrecord;
             return rec.rec;
         });
     }
@@ -143,7 +149,7 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     async findOne(id: string | number): Promise<BaseRecord | null> {
         try {
-            const mapping = this.rawResource.findOne(id);
+            const mapping = this.rawResource.findOne(deflateReference(id));
             const result = await this.executeMapping(mapping);
             if (result) {
                 return new BaseRecord(result, this);
@@ -329,6 +335,16 @@ function deflateParams<T>(params: T): T {
     }
 
     return record as T;
+}
+
+function deflateReference(ref: unknown): string {
+    if (typeof ref === "object" && ref !== null) {
+        const fields = Object.values(ref);
+        if (fields.length === 1) {
+            return fields[0];
+        }
+    }
+    return `${ref}`;
 }
 
 export const _testing = {

@@ -1,14 +1,14 @@
 import Koa from "koa";
 import gql from "graphql-tag";
 
-import { makeServerMiddleware } from "tiny-graphql-koa";
+import { LoggerPlugin, makeServerMiddleware } from "tiny-graphql-koa";
 
 const app = new Koa();
 
 interface Thing {
     ID?: string;
     name: string;
-    another: Other;
+    another: Other[];
 }
 
 interface Other {
@@ -40,12 +40,12 @@ const things: Thing[] = [
     {
         ID: "0",
         name: "Hammer",
-        another: others[0]
+        another: [others[0]]
     },
     {
         ID: "1",
         name: "Saw",
-        another: others[1]
+        another: others
     }
 ];
 
@@ -55,7 +55,7 @@ const graphqlServer = makeServerMiddleware({
             type Thing {
                 ID: ID!
                 name: String!
-                another: Other!
+                another: [Other!]!
             }
 
             type Other {
@@ -133,6 +133,7 @@ const graphqlServer = makeServerMiddleware({
         }
     ],
     playgroundEndpoint: "/playground",
+    plugins: [new LoggerPlugin()]
 });
 
 app.use(graphqlServer);
