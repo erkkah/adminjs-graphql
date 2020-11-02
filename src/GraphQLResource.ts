@@ -1,4 +1,4 @@
-import { DocumentNode, GraphQLNamedType, isInputType, coerceValue } from "graphql";
+import { DocumentNode, GraphQLNamedType, isInputType, coerceValue, GraphQLScalarType, GraphQLObjectType, GraphQLID } from "graphql";
 import { PropertyType, ParamsType, BaseResource, BaseRecord, Filter, ForbiddenError } from "admin-bro";
 import { GraphQLConnection } from ".";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";
@@ -22,7 +22,9 @@ export interface GraphQLResource {
     id: string;
 
     sortableFields?: string[];
+    // ??? Remove?
     fieldTypes?: { [field: string]: PropertyType };
+    // ??? Remove?
     referenceFields?: { [field: string]: string };
     makeSubproperties?: boolean;
 
@@ -37,7 +39,7 @@ export interface GraphQLResource {
     delete?: (id: string | number) => GraphQLQueryMapping<void>;
 }
 
-export type FilterOperation = "GTE" | "LTE" | "EQ";
+export type FilterOperation = "GTE" | "LTE" | "EQ" | "MATCH";
 
 export interface FieldFilter {
     field: string;
@@ -129,9 +131,22 @@ export class GraphQLResourceAdapter extends BaseResource {
         return resolved.filter<BaseRecord>((record): record is BaseRecord => (record != null));
     }
 
+    coerceParams(params: ParamsType): ParamsType {
+        return Object.keys(params).reduce((coerced, key) => {
+            let value = params[key];
+            const type = this.rawResource?.typeMap?.get(key);
+            if (type instanceof GraphQLScalarType) {
+                value = type.serialize(value);
+            }
+            coerced[key] = value;
+            return coerced;
+        }, {} as ParamsType);
+    }
+
     async create(params: ParamsType): Promise<ParamsType> {
         try {
-            const mapping = this.rawResource.create?.(inflateParams(params));
+            const inflated = inflateParams(this.coerceParams(params));
+            const mapping = this.rawResource.create?.(inflated);
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
             }
@@ -143,7 +158,8 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     async update(id: string, params: ParamsType): Promise<ParamsType> {
         try {
-            const mapping = this.rawResource.update?.(id, inflateParams(params));
+            const inflated = inflateParams(this.coerceParams(params));
+            const mapping = this.rawResource.update?.(id, inflated);
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
             }
@@ -191,10 +207,16 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     private mapFilter(filter: Filter): FieldFilter[] {
         return filter.reduce<FieldFilter[]>((mapped, element) => {
+
             const from = typeof element.value == "string" ? element.value : element.value.from;
             const to = typeof element.value == "string" ? from : element.value.to;
+            const matchOperation: FilterOperation = typeof element.value == "string" ? "MATCH" : "EQ";
 
-            const graphQLType = this.rawResource.typeMap?.get(element.path);
+            let graphQLType = this.rawResource.typeMap?.get(element.path);
+            if (graphQLType instanceof GraphQLObjectType) {
+                graphQLType = GraphQLID;
+            }
+
             if (!graphQLType || !isInputType(graphQLType)) {
                 this.connection.reportAndThrow(
                     new Error(`Cannot get valid GraphQL type from ${this.rawResource.id}:${element.path}`)
@@ -218,7 +240,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             if (from === to) {
                 mapped.push({
                     field: element.property.path(),
-                    is: "EQ",
+                    is: matchOperation,
                     to: coercedFrom.value,
                 });
             } else {
@@ -292,13 +314,15 @@ function deflateParams<T>(params: T, IDField = "ID"): T {
             if (deflatedKeys.length === 1 && IDField in deflated) {
                 // Reference hack!
                 param = Object.values(deflated)[0];
+                record[key] = param;
             } else {
                 for (const subKey of deflatedKeys) {
                     record[`${key}.${subKey}`] = deflated[subKey];
                 }
             }
+        } else {
+            record[key] = param;
         }
-        record[key] = param;
     }
 
     return record as T;

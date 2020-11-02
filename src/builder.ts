@@ -9,6 +9,7 @@ export interface BuildResourcePieces {
     type: string;
     inputType?: string;
     mapInputValue?(input: Entity): Entity,
+    inputFieldMap?: Record<string, string>,
     singular?: string;
     plural?: string;
     ID?: string;
@@ -36,8 +37,15 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
     const createMutation = pieces.mutations?.create || "create" + upperTail;
     const updateMutation = pieces.mutations?.update || "update" + upperTail;
     const deleteMutation = pieces.mutations?.delete || "delete" + upperTail;
-    const identity = (v: Entity) => v;
-    const mapInputValue = pieces.mapInputValue ?? identity;
+    const mapInputValue = (v: Entity) => {
+        if (pieces.mapInputValue) {
+            return pieces.mapInputValue(v);
+        }
+        return Object.keys(v).reduce((value, key) => {
+            value[pieces.inputFieldMap?.[key] ?? key] = v[key];
+            return value;
+        }, {} as Entity);
+    };
 
     if (!fragmentString) {
         throw new Error("Unexpected empty fragment");
@@ -57,7 +65,10 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
                 }
             }`,
             variables: {
-                filter
+                filter: filter.map((entry) => ({
+                    ...entry,
+                    field: pieces.inputFieldMap?.[entry.field] ?? entry.field
+                })),
             },
             parseResult(response: { q: unknown[] }) {
                 return response.q.length;
@@ -73,7 +84,10 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             }
             fragment fields on ${pieces.type} ${fragmentString} `,
             variables: {
-                filter
+                filter: filter.map((entry) => ({
+                    ...entry,
+                    field: pieces.inputFieldMap?.[entry.field] ?? entry.field
+                })),
             },
             parseResult(response: { q: Entity[] }) {
                 return response.q;

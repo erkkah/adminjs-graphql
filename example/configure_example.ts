@@ -7,6 +7,8 @@ import { configureResource, GraphQLAdapter, GraphQLConnection } from "admin-bro-
 
 AdminBro.registerAdapter(GraphQLAdapter);
 
+type Entity = Record<string, Record<string, unknown> | Array<unknown>>;
+
 const thingResource = configureResource("Thing",
     {
         fragment: gql`
@@ -18,14 +20,18 @@ const thingResource = configureResource("Thing",
             }
         }
     `,
+        mapInputValue: (input: Entity) => ({
+            name: input.name,
+            anotherIDs: input.another
+        })
     },
     {
-        sortableFields: ["name"]
+        sortableFields: ["name"],
     },
     {
-        editProperties: ["name"],
+        // editProperties: ["name"],
         listProperties: ["ID", "name"]
-    }
+    },
 );
 
 const otherResource = configureResource("Other",

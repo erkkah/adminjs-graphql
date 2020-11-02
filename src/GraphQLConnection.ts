@@ -23,6 +23,7 @@ import {
     GraphQLList,
     GraphQLObjectType,
     GraphQLID,
+    GraphQLType,
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -129,11 +130,8 @@ export class GraphQLConnection {
                                 const selections = field.selectionSet?.selections ?? [];
                                 if (selections.length === 1 && selections[0].kind === "Field") {
                                     const fieldName = selections[0].name.value;
-                                    let fieldType = objectFields[fieldName].type;
-                                    while (isWrappingType(fieldType)) {
-                                        fieldType = fieldType.ofType;
-                                    }
-                                    if (fieldType === GraphQLID) {
+                                    const fieldType = objectFields[fieldName].type;
+                                    if (isID(fieldType)) {
                                         propertyType = "reference";
                                         referencing = namedType.name;
                                     }
@@ -181,10 +179,11 @@ export class GraphQLConnection {
                                     throw new Error("Unexpected empty object");
                                 }
                                 const lastObject = objectStack[objectStack.length - 1];
-                                if (resource.makeSubproperties) {
-                                    const lastProperty = lastObject[lastObject.length - 1];
+                                const lastProperty = lastObject[lastObject.length - 1];
+
+                                if (lastProperty && resource.makeSubproperties) {
                                     lastProperty.setSubProperties(currentObject);
-                                } else {
+                                } else if (currentObject.length !== 1 || !currentObject[0].isId()) {
                                     lastObject.push(...currentObject);
                                 }
                             }
@@ -264,4 +263,11 @@ function expandFragments(node: DocumentNode): DocumentNode {
             return fragment.selectionSet;
         }
     });
+}
+
+function isID(fieldType: GraphQLType): boolean {
+    while (isWrappingType(fieldType)) {
+        fieldType = fieldType.ofType;
+    }
+    return (fieldType === GraphQLID);
 }

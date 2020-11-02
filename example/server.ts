@@ -65,7 +65,7 @@ const graphqlServer = makeServerMiddleware({
 
             input ThingInput {
                 name: String!
-                anotherID: ID!
+                anotherIDs: [ID!]!
             }
 
             enum FilterOperation {
@@ -93,7 +93,7 @@ const graphqlServer = makeServerMiddleware({
 
             type Mutation {
                 createThing(input: ThingInput): Thing
-                updateThing(ID: ID!, input: ThingInput!): Thing
+                updateThing(ID: ID!, update: ThingInput!): Thing
                 deleteThing(ID: ID!): Boolean!
             }
         `,
