@@ -90,12 +90,13 @@ export class GraphQLConnection {
 
                 // Initialize with "root" object
                 const objectStack: GraphQLPropertyAdapter[][] = [[]];
+                const propertyMap = new Map<string, GraphQLPropertyAdapter>();
 
                 visit(topNode, visitWithTypeInfo(typeInfo, {
                     Field: {
                         enter: (field) => {
-                            const parentType = typeInfo.getParentType()?.name;
-                            if (parentType === "Query" || parentType === "Mutation") {
+                            const parentType = typeInfo.getParentType();
+                            if (parentType?.name === "Query" || parentType?.name === "Mutation") {
                                 return;
                             }
                             const fieldName = field.name.value;
@@ -120,6 +121,7 @@ export class GraphQLConnection {
                                 enumValues = namedType.getValues().map((val) => val.value);
                             }
 
+                            const parentPath = path.join(".");
                             const propertyPath = [...path, fieldName].join(".");
 
                             let propertyType: PropertyType | undefined;
@@ -130,8 +132,12 @@ export class GraphQLConnection {
                                 const selections = field.selectionSet?.selections ?? [];
                                 if (selections.length === 1 && selections[0].kind === "Field") {
                                     const fieldName = selections[0].name.value;
-                                    const fieldType = objectFields[fieldName].type;
-                                    if (isID(fieldType)) {
+                                    const objectField = objectFields[fieldName];
+                                    if (!objectField) {
+                                        throw new Error(`Field ${fieldName} is not in ${namedType.name}`);
+                                    }
+                                    const fieldType = objectField.type;
+                                    if (typeIsID(fieldType)) {
                                         propertyType = "reference";
                                         referencing = namedType.name;
                                     }
@@ -146,22 +152,24 @@ export class GraphQLConnection {
                                     GraphQLConnection.graphQLTypeToPropertyType(namedType);
                             }
 
-                            // Add field to topmost object
-                            if (resource.makeSubproperties || propertyType !== "mixed") {
-                                objectStack[objectStack.length - 1].push(
-                                    new GraphQLPropertyAdapter({
-                                        path: resource.makeSubproperties ? fieldName : propertyPath,
-                                        type: propertyType,
-                                        isId: namedType.name === "ID" && propertyType !== "reference",
-                                        isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
-                                        referencing: referencing ?? resource.referenceFields?.[propertyPath],
-                                        enumValues,
-                                        isArray
-                                    })
-                                );
-                            }
+                            const parentProperty = propertyMap.get(parentPath);
+                            const useFullPath = !resource.makeSubproperties &&
+                                !(parentProperty?.type() === "mixed" && parentProperty?.isArray());
 
+                            const property = new GraphQLPropertyAdapter({
+                                path: useFullPath ? propertyPath : fieldName,
+                                type: propertyType,
+                                isId: namedType.name === "ID" && propertyType !== "reference",
+                                isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
+                                referencing: referencing ?? resource.referenceFields?.[propertyPath],
+                                enumValues,
+                                isArray
+                            });
+
+                            objectStack[objectStack.length - 1].push(property);
+                            propertyMap.set(propertyPath, property);
                             resource.typeMap?.set(propertyPath, namedType);
+
                             if (field.selectionSet) {
                                 path.push(fieldName);
                                 objectStack.push([]);
@@ -181,7 +189,7 @@ export class GraphQLConnection {
                                 const lastObject = objectStack[objectStack.length - 1];
                                 const lastProperty = lastObject[lastObject.length - 1];
 
-                                if (lastProperty && resource.makeSubproperties) {
+                                if (lastProperty && ((lastProperty.type() === "mixed" && lastProperty.isArray()) || resource.makeSubproperties)) {
                                     lastProperty.setSubProperties(currentObject);
                                 } else if (currentObject.length !== 1 || !currentObject[0].isId()) {
                                     lastObject.push(...currentObject);
@@ -191,7 +199,7 @@ export class GraphQLConnection {
                     },
                 }));
 
-                resource.properties = objectStack.pop();
+                resource.properties = objectStack.pop()?.filter((prop) => prop.type() !== "mixed" || prop.subProperties().length);
             });
     }
 
@@ -265,7 +273,7 @@ function expandFragments(node: DocumentNode): DocumentNode {
     });
 }
 
-function isID(fieldType: GraphQLType): boolean {
+function typeIsID(fieldType: GraphQLType): boolean {
     while (isWrappingType(fieldType)) {
         fieldType = fieldType.ofType;
     }
