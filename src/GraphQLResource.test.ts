@@ -135,7 +135,7 @@ describe("Resource parameter inflation", () => {
         expect(inflated).toEqual(expected);
     });
 
-    it("Inflates nested array", () => {
+    it("Inflates array", () => {
         const input = {
             "array.0": "zero",
             "array.3": "three",
@@ -147,6 +147,28 @@ describe("Resource parameter inflation", () => {
                 undefined,
                 undefined,
                 "three",
+            ]
+        };
+
+        const inflated = inflateParams(input);
+        expect(inflated).toEqual(expected);
+    });
+
+
+    it("Inflates nested array", () => {
+        const input = {
+            "array.0.field": "zeroth",
+            "array.1.field": "first",
+        };
+
+        const expected = {
+            array: [
+                {
+                    field: "zeroth"
+                },
+                {
+                    field: "first"
+                },
             ]
         };
 

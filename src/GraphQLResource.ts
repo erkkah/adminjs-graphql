@@ -1,4 +1,4 @@
-import { DocumentNode, GraphQLNamedType, isInputType, coerceValue, GraphQLScalarType, GraphQLObjectType, GraphQLID } from "graphql";
+import { DocumentNode, GraphQLNamedType, isInputType, GraphQLScalarType, GraphQLObjectType, GraphQLID, GraphQLType } from "graphql";
 import { PropertyType, ParamsType, BaseResource, BaseRecord, Filter, ForbiddenError } from "admin-bro";
 import { GraphQLConnection } from ".";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";
@@ -44,8 +44,8 @@ export type FilterOperation = "GTE" | "LTE" | "EQ" | "MATCH";
 export interface FieldFilter {
     field: string;
     is: FilterOperation;
-    than?: string;
-    to?: string;
+    than?: unknown;
+    to?: unknown;
 }
 
 export type InternalGraphQLResource = GraphQLResource & {
@@ -131,7 +131,7 @@ export class GraphQLResourceAdapter extends BaseResource {
         return resolved.filter<BaseRecord>((record): record is BaseRecord => (record != null));
     }
 
-    coerceParams(params: ParamsType): ParamsType {
+    private convertParams(params: ParamsType): ParamsType {
         return Object.keys(params).reduce((coerced, key) => {
             let value = params[key];
             const type = this.rawResource?.typeMap?.get(key);
@@ -145,7 +145,7 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     async create(params: ParamsType): Promise<ParamsType> {
         try {
-            const inflated = inflateParams(this.coerceParams(params));
+            const inflated = inflateParams(this.convertParams(params));
             const mapping = this.rawResource.create?.(inflated);
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
@@ -158,7 +158,7 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     async update(id: string, params: ParamsType): Promise<ParamsType> {
         try {
-            const inflated = inflateParams(this.coerceParams(params));
+            const inflated = inflateParams(this.convertParams(params));
             const mapping = this.rawResource.update?.(id, inflated);
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
@@ -210,7 +210,7 @@ export class GraphQLResourceAdapter extends BaseResource {
 
             const from = typeof element.value == "string" ? element.value : element.value.from;
             const to = typeof element.value == "string" ? from : element.value.to;
-            const matchOperation: FilterOperation = typeof element.value == "string" ? "MATCH" : "EQ";
+            const matchOperation: FilterOperation = element.property.type() === "string" ? "MATCH" : "EQ";
 
             let graphQLType = this.rawResource.typeMap?.get(element.path);
             if (graphQLType instanceof GraphQLObjectType) {
@@ -223,37 +223,26 @@ export class GraphQLResourceAdapter extends BaseResource {
                 );
             }
 
-            const coercedFrom = coerceValue(from, graphQLType);
-            if (coercedFrom.errors?.length) {
-                this.connection.reportAndThrow(
-                    new Error(`Cannot coerce "from" value from ${from} to ${graphQLType}: ${coercedFrom.errors}`)
-                );
-            }
-
-            const coercedTo = coerceValue(to, graphQLType);
-            if (coercedTo.errors?.length) {
-                this.connection.reportAndThrow(
-                    new Error(`Cannot coerce "to" value from ${from} to ${graphQLType}: ${coercedTo.errors}`)
-                );
-            }
+            const coercedFrom = convertValue(from, graphQLType);
+            const coercedTo = convertValue(to, graphQLType);
 
             if (from === to) {
                 mapped.push({
                     field: element.property.path(),
                     is: matchOperation,
-                    to: coercedFrom.value,
+                    to: coercedFrom
                 });
             } else {
                 mapped.push(
                     {
                         field: element.property.path(),
                         is: "GTE",
-                        to: coercedFrom.value,
+                        to: coercedFrom,
                     },
                     {
                         field: element.property.path(),
                         is: "LTE",
-                        to: coercedTo.value,
+                        to: coercedTo,
                     }
                 );
             }
@@ -276,11 +265,9 @@ function inflateParams(params: Record<string, unknown>): Record<string, unknown>
             if (step === undefined) {
                 break;
             }
-            if (steps.length === 1) {
-                index = parseInt(steps[0]);
-                if (!isNaN(index)) {
-                    nextObject = [];
-                }
+            index = parseInt(steps[0]);
+            if (!isNaN(index)) {
+                nextObject = [];
             }
             object[step] = object[step] || nextObject;
             object = object[step] as typeof object;
@@ -336,6 +323,13 @@ function deflateReference(ref: unknown): string {
         }
     }
     return `${ref}`;
+}
+
+function convertValue(value: unknown, type: GraphQLType): unknown {
+    if (type instanceof GraphQLScalarType) {
+        return type.serialize(value);
+    }
+    return value;
 }
 
 export const _testing = {
