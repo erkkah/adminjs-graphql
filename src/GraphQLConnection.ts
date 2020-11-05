@@ -24,6 +24,7 @@ import {
     GraphQLObjectType,
     GraphQLID,
     GraphQLType,
+    GraphQLNonNull,
 } from "graphql";
 
 import { GraphQLClient } from "./GraphQLClient";
@@ -107,10 +108,13 @@ export class GraphQLConnection {
                             }
 
                             let isArray = false;
+                            let isRequired = false;
 
                             while (isWrappingType(graphQLType)) {
                                 if (graphQLType instanceof GraphQLList) {
                                     isArray = true;
+                                } else if (graphQLType instanceof GraphQLNonNull) {
+                                    isRequired = true;
                                 }
                                 graphQLType = graphQLType.ofType as GraphQLOutputType;
                             }
@@ -163,7 +167,8 @@ export class GraphQLConnection {
                                 isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
                                 referencing: referencing ?? resource.referenceFields?.[propertyPath],
                                 enumValues,
-                                isArray
+                                isArray,
+                                isRequired
                             });
 
                             objectStack[objectStack.length - 1].push(property);
