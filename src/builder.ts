@@ -1,8 +1,8 @@
 import { DocumentNode } from "graphql";
 import { GraphQLResource, FieldFilter, GraphQLConnection } from ".";
-import { ResourceWithOptions, ResourceOptions, LocaleTranslations, LocaleTranslationsBlock } from "admin-bro";
+import { ResourceWithOptions, ResourceOptions, LocaleTranslations, LocaleTranslationsBlock, FeatureType } from "admin-bro";
 
-type Entity = Record<string, unknown>;
+export type Entity = Record<string, Array<Record<string, unknown>> | Record<string, unknown>>;
 
 export interface BuildResourcePieces {
     fragment: string | DocumentNode;
@@ -38,13 +38,13 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
     const updateMutation = pieces.mutations?.update || "update" + upperTail;
     const deleteMutation = pieces.mutations?.delete || "delete" + upperTail;
     const mapInputValue = (v: Entity) => {
-        if (pieces.mapInputValue) {
-            return pieces.mapInputValue(v);
-        }
-        return Object.keys(v).reduce((value, key) => {
-            value[pieces.inputFieldMap?.[key] ?? key] = v[key];
-            return value;
-        }, {} as Entity);
+        return {
+            ...Object.keys(v).reduce((value, key) => {
+                value[pieces.inputFieldMap?.[key] ?? key] = v[key];
+                return value;
+            }, {} as Entity),
+            ...pieces.mapInputValue?.(v)
+        };
     };
 
     if (!fragmentString) {
@@ -167,29 +167,33 @@ export interface ConfiguredResource {
     translations?: LocaleTranslations["resources"];
 }
 
-export function configureResource(
+export interface ConfigureResourceOptions {
     type: string,
     pieces: Omit<BuildResourcePieces, "type">,
     extras?: Partial<GraphQLResource>,
-    options: ResourceOptions = {},
+    options?: ResourceOptions,
+    features?: FeatureType[],
     resourceTranslations?: Partial<LocaleTranslationsBlock>,
-): ConfiguredResource {
+}
+
+export function configureResource(options: ConfigureResourceOptions): ConfiguredResource {
     const resource = {
         ...buildResource({
-            ...pieces,
-            type,
+            ...options.pieces,
+            type: options.type,
         }),
-        ...extras
+        ...options.extras
     };
 
     const configuration = (connection: GraphQLConnection): ResourceWithOptions => ({
-        resource: connection.r[type],
-        options
+        resource: connection.r[options.type],
+        options: options.options ?? {},
+        features: options.features
     });
 
-    const translations = resourceTranslations
+    const translations = options.resourceTranslations
         ? {
-            [type]: resourceTranslations
+            [options.type]: options.resourceTranslations
         }
         : undefined;
 
