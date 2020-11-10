@@ -2,7 +2,8 @@ import { DocumentNode } from "graphql";
 import { GraphQLResource, FieldFilter, GraphQLConnection } from ".";
 import { ResourceWithOptions, ResourceOptions, LocaleTranslations, LocaleTranslationsBlock, FeatureType } from "admin-bro";
 
-export type Entity = Record<string, Array<Record<string, unknown>> | Record<string, unknown>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Entity = Record<string, any>;
 
 export interface BuildResourcePieces {
     fragment: string | DocumentNode;
