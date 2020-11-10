@@ -134,9 +134,11 @@ export class GraphQLResourceAdapter extends BaseResource {
     private convertParams(params: ParamsType): ParamsType {
         return Object.keys(params).reduce((coerced, key) => {
             let value = params[key];
-            const type = this.rawResource?.typeMap?.get(key);
-            if (type instanceof GraphQLScalarType) {
-                value = type.serialize(value);
+            if (value != null) {
+                const type = this.rawResource?.typeMap?.get(key);
+                if (type instanceof GraphQLScalarType) {
+                    value = type.serialize(value);
+                }
             }
             coerced[key] = value;
             return coerced;
