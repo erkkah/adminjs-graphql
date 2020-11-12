@@ -1,5 +1,5 @@
 import { DocumentNode, GraphQLNamedType, isInputType, GraphQLScalarType, GraphQLObjectType, GraphQLID, GraphQLType } from "graphql";
-import { PropertyType, ParamsType, BaseResource, BaseRecord, Filter, ForbiddenError } from "admin-bro";
+import { PropertyType, ParamsType, BaseResource, BaseRecord, Filter, ForbiddenError, ValidationError, PropertyErrors } from "admin-bro";
 import { GraphQLConnection } from ".";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";
 
@@ -132,17 +132,55 @@ export class GraphQLResourceAdapter extends BaseResource {
     }
 
     private convertParams(params: ParamsType): ParamsType {
-        return Object.keys(params).reduce((coerced, key) => {
+        const converted = Object.keys(params).reduce((coerced, key) => {
             let value = params[key];
-            if (value != null) {
-                const type = this.rawResource?.typeMap?.get(key);
-                if (type instanceof GraphQLScalarType) {
-                    value = type.serialize(value);
+            try {
+                if (value != null) {
+                    const type = this.rawResource?.typeMap?.get(key);
+                    if (type instanceof GraphQLScalarType) {
+                        value = type.serialize(value);
+                    }
+                }
+                coerced[key] = value;
+                return coerced;
+            } catch (error) {
+                if (value === "" && !this.propertyMap.get(key)?.isRequired()) {
+                    coerced[key] = null;
+                    return coerced;
+                }
+                throw new ValidationError({
+                    [key]: {
+                        type: "conversion",
+                        message: error.message,
+                    }
+                });
+            }
+        }, {} as ParamsType);
+
+        this.validateParams(converted);
+        return converted;
+    }
+
+    private validateParams(params: ParamsType) {
+        const errors: PropertyErrors = {};
+
+        for (const key of Object.keys(params)) {
+            const property = this.propertyMap.get(key);
+            const value = params[key];
+
+            if (property?.isRequired()) {
+                if (value == "" || value == null) {
+                    errors[key] = {
+                        type: "required",
+                        message: "Required field"
+                    };
                 }
             }
-            coerced[key] = value;
-            return coerced;
-        }, {} as ParamsType);
+        }
+
+        if (Object.keys(errors).length) {
+            throw new ValidationError(errors);
+        }
     }
 
     async create(params: ParamsType): Promise<ParamsType> {
