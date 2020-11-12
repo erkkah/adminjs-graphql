@@ -1,6 +1,6 @@
 {
    "name": "admin-bro-graphql",
-   "version": "1.0.0",
+   "version": "1.0.13",
    "description": "admin-bro GraphQL adapter",
    "keywords": [
       "admin-bro",
@@ -18,6 +18,7 @@
    "scripts": {
       "test": "jest",
       "build": "tsc",
+      "prepack": "rm -rf lib && tsc",
       "lint": "eslint src/*"
    },
    "author": "Erik Agsjö",
