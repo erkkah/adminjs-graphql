@@ -113,7 +113,7 @@ export class GraphQLConnection {
                             while (isWrappingType(graphQLType)) {
                                 if (graphQLType instanceof GraphQLList) {
                                     isArray = true;
-                                } else if (graphQLType instanceof GraphQLNonNull) {
+                                } else if (graphQLType instanceof GraphQLNonNull && !isArray) {
                                     isRequired = true;
                                 }
                                 graphQLType = graphQLType.ofType as GraphQLOutputType;
