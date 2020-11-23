@@ -1,6 +1,7 @@
 import { DocumentNode } from "graphql";
 import { GraphQLResource, FieldFilter, GraphQLConnection } from ".";
 import { ResourceWithOptions, ResourceOptions, LocaleTranslations, LocaleTranslationsBlock, FeatureType } from "admin-bro";
+import { FindOptions } from "./GraphQLResource";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Entity = Record<string, any>;
@@ -76,20 +77,32 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             }
         }),
 
-        find: (filter: FieldFilter[]) => ({
+        find: (filter: FieldFilter[], options: FindOptions) => ({
             query: `
-            query($filter: [FilterInput!]) {
-                q: ${pieces.queries?.find || plural}(filter: $filter) {
+            query($filter: [FilterInput!], $sorting: SortingInput) {
+                q: ${pieces.queries?.find || plural}(filter: $filter, sorting: $sorting) {
                     ...fields
                 }
             }
             fragment fields on ${pieces.type} ${fragmentString} `,
-            variables: {
-                filter: filter.map((entry) => ({
-                    ...entry,
-                    field: pieces.inputFieldMap?.[entry.field] ?? entry.field
-                })),
-            },
+            variables: (() => {
+                const sortField = options.sort?.sortBy;
+                const sortOrder = options.sort?.direction?.toUpperCase();
+                const sorting = sortField ? {
+                    sorting: {
+                        by: sortField,
+                        order: sortOrder ?? "ASC",
+                    }
+                } : undefined;
+
+                return {
+                    filter: filter.map((entry) => ({
+                        ...entry,
+                        field: pieces.inputFieldMap?.[entry.field] ?? entry.field
+                    })),
+                    ...sorting
+                };
+            })(),
             parseResult(response: { q: Entity[] }) {
                 return response.q;
             }

@@ -156,6 +156,8 @@ export class GraphQLConnection {
                                     GraphQLConnection.graphQLTypeToPropertyType(namedType);
                             }
 
+                            const isSortable = resource.sortableFields ? resource.sortableFields.includes(propertyPath) : propertyType != "reference";
+
                             const parentProperty = propertyMap.get(parentPath);
                             const useFullPath = !resource.makeSubproperties &&
                                 !(parentProperty?.type() === "mixed" && parentProperty?.isArray());
@@ -164,7 +166,7 @@ export class GraphQLConnection {
                                 path: useFullPath ? propertyPath : fieldName,
                                 type: propertyType,
                                 isId: namedType.name === "ID" && propertyType !== "reference",
-                                isSortable: resource.sortableFields?.includes(propertyPath) ?? true,
+                                isSortable: isSortable,
                                 referencing: referencing ?? resource.referenceFields?.[propertyPath],
                                 enumValues,
                                 isArray,
