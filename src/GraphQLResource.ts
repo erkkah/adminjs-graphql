@@ -273,18 +273,25 @@ export class GraphQLResourceAdapter extends BaseResource {
                     to: coercedFrom
                 });
             } else {
-                mapped.push(
-                    {
-                        field: element.property.path(),
-                        is: "GTE",
-                        to: coercedFrom,
-                    },
-                    {
-                        field: element.property.path(),
-                        is: "LTE",
-                        to: coercedTo,
-                    }
-                );
+                if (from !== undefined && from != "") {
+                    mapped.push(
+                        {
+                            field: element.property.path(),
+                            is: "GTE",
+                            to: coercedFrom,
+                        },
+                    );
+                }
+                if (to !== undefined && to != "") {
+                    mapped.push(
+                        {
+                            field: element.property.path(),
+                            is: "LTE",
+                            to: coercedTo,
+                        }
+                    );
+
+                }
             }
             return mapped;
         }, []);
