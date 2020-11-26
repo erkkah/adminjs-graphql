@@ -79,8 +79,8 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
 
         find: (filter: FieldFilter[], options: FindOptions) => ({
             query: `
-            query($filter: [FilterInput!], $sorting: SortingInput) {
-                q: ${pieces.queries?.find || plural}(filter: $filter, sorting: $sorting) {
+            query($filter: [FilterInput!], $sorting: SortingInput, $offset: Int, $limit: Int) {
+                q: ${pieces.queries?.find || plural}(filter: $filter, sorting: $sorting, offset: $offset, limit:$limit) {
                     ...fields
                 }
             }
@@ -95,12 +95,22 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
                     }
                 } : undefined;
 
+                const offset = options.offset ? {
+                    offset: options.offset
+                } : undefined;
+
+                const limit = options.limit ? {
+                    limit: options.limit
+                } : undefined;
+
                 return {
                     filter: filter.map((entry) => ({
                         ...entry,
                         field: pieces.inputFieldMap?.[entry.field] ?? entry.field
                     })),
-                    ...sorting
+                    ...sorting,
+                    ...offset,
+                    ...limit,
                 };
             })(),
             parseResult(response: { q: Entity[] }) {
