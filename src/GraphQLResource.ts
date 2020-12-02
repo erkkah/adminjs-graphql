@@ -164,12 +164,25 @@ export class GraphQLResourceAdapter extends BaseResource {
     private validateParams(params: ParamsType) {
         const errors: PropertyErrors = {};
 
-        for (const key of Object.keys(params)) {
-            const property = this.propertyMap.get(key);
+        const editProperties = this._decorated?.options?.editProperties ?? [];
+
+        for (const key of this.properties().map((p) => p.path())) {
+            const property = this._decorated?.getPropertyByKey(key);
             const value = params[key];
 
-            if (property?.isRequired()) {
-                if (value == "" || value == null) {
+            // Skip properties that are not being edited
+            if (editProperties.length && !editProperties.includes(property?.property.path() ?? "")) {
+                continue;
+            }
+
+            // Skip self ID properties
+            if (property?.isId() && property?.type() !== "reference") {
+                continue;
+            }
+
+            const required = property?.options.isRequired ?? property?.isRequired();
+            if (required) {
+                if (value == "" || value == null || value == undefined) {
                     errors[key] = {
                         type: "required",
                         message: "Required field"
