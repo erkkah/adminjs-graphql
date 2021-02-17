@@ -1,6 +1,6 @@
 {
    "name": "admin-bro-graphql",
-   "version": "1.0.31",
+   "version": "1.0.32",
    "description": "admin-bro GraphQL adapter",
    "keywords": [
       "admin-bro",
@@ -28,7 +28,7 @@
       "@types/node": "^14.10.0",
       "@typescript-eslint/eslint-plugin": "^4.1.0",
       "@typescript-eslint/parser": "^4.1.0",
-      "admin-bro": "^3.3.1",
+      "admin-bro": "^3.4.0",
       "eslint": "^7.9.0",
       "jest": "^26.6.1",
       "ts-jest": "^26.4.3",
@@ -40,7 +40,7 @@
       "admin-bro": "^3.3.1"
    },
    "dependencies": {
-      "axios": "^0.20.0",
+      "axios": "^0.21.1",
       "graphql": "^14.7.0"
    }
 }
