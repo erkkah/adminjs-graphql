@@ -16,7 +16,7 @@ export interface BuildResourcePieces {
     plural?: string;
     ID?: string;
     queries?: {
-        list?: string;
+        count?: string;
         find?: string;
         get?: string;
     },
@@ -62,9 +62,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
         count: (filter: FieldFilter[]) => ({
             query: `
             query($filter: [FilterInput!]) {
-                q: ${pieces.queries?.list || plural}(filter: $filter) {
-                    ${IDField}
-                }
+                count: ${pieces.queries?.count || `${singular}Count`}(filter: $filter)
             }`,
             variables: {
                 filter: filter.map((entry) => ({
@@ -72,8 +70,8 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
                     field: pieces.inputFieldMap?.[entry.field] ?? entry.field
                 })),
             },
-            parseResult(response: { q: unknown[] }) {
-                return response.q.length;
+            parseResult(response: { count: number }) {
+                return response.count;
             }
         }),
 
