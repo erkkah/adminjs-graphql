@@ -1,6 +1,12 @@
 import { DocumentNode } from "graphql";
 import { GraphQLResource, FieldFilter, GraphQLConnection } from ".";
-import { ResourceWithOptions, ResourceOptions, LocaleTranslations, LocaleTranslationsBlock, FeatureType } from "admin-bro";
+import {
+    ResourceWithOptions,
+    ResourceOptions,
+    LocaleTranslations,
+    LocaleTranslationsBlock,
+    FeatureType,
+} from "admin-bro";
 import { FindOptions } from "./GraphQLResource";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,8 +16,12 @@ export interface BuildResourcePieces {
     fragment: string | DocumentNode;
     type: string;
     inputType?: string;
-    mapInputValue?(input: Entity): Entity,
-    inputFieldMap?: Record<string, string>,
+    // Extends the default mapping from admin-bro entity to the corresponding GraphQL object
+    // for create and update mutations.
+    mapInputValue?(input: Entity): Entity;
+    // Maps from admin-bro entity names to corresponding GraphQL field names for
+    // count, find, create and update
+    inputFieldMap?: Record<string, string>;
     singular?: string;
     plural?: string;
     ID?: string;
@@ -19,21 +29,24 @@ export interface BuildResourcePieces {
         count?: string;
         find?: string;
         get?: string;
-    },
+    };
     mutations?: {
         create?: string;
         update?: string;
         delete?: string;
-    },
+    };
 }
 
 export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
     const IDField = pieces.ID || "ID";
-    const singular = pieces.singular || pieces.type[0].toLowerCase() + pieces.type.slice(1);
+    const singular =
+        pieces.singular || pieces.type[0].toLowerCase() + pieces.type.slice(1);
     const plural = pieces.plural || singular + "s";
-    const fragmentString = ((typeof pieces.fragment === "string")
-        ? pieces.fragment
-        : pieces.fragment.loc?.source.body)?.trim();
+    const fragmentString = (
+        typeof pieces.fragment === "string"
+            ? pieces.fragment
+            : pieces.fragment.loc?.source.body
+    )?.trim();
     const inputType = pieces.inputType || `${pieces.type}Input`;
     const upperTail = singular[0].toUpperCase() + singular.slice(1);
     const createMutation = pieces.mutations?.create || "create" + upperTail;
@@ -45,7 +58,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
                 value[pieces.inputFieldMap?.[key] ?? key] = v[key];
                 return value;
             }, {} as Entity),
-            ...pieces.mapInputValue?.(v)
+            ...pieces.mapInputValue?.(v),
         };
     };
 
@@ -62,23 +75,27 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
         count: (filter: FieldFilter[]) => ({
             query: `
             query($filter: [FilterInput!]) {
-                count: ${pieces.queries?.count || `${singular}Count`}(filter: $filter)
+                count: ${
+                    pieces.queries?.count || `${singular}Count`
+                }(filter: $filter)
             }`,
             variables: {
                 filter: filter.map((entry) => ({
                     ...entry,
-                    field: pieces.inputFieldMap?.[entry.field] ?? entry.field
+                    field: pieces.inputFieldMap?.[entry.field] ?? entry.field,
                 })),
             },
             parseResult(response: { count: number }) {
                 return response.count;
-            }
+            },
         }),
 
         find: (filter: FieldFilter[], options: FindOptions) => ({
             query: `
             query($filter: [FilterInput!], $sorting: SortingInput, $offset: Int, $limit: Int) {
-                q: ${pieces.queries?.find || plural}(filter: $filter, sorting: $sorting, offset: $offset, limit:$limit) {
+                q: ${
+                    pieces.queries?.find || plural
+                }(filter: $filter, sorting: $sorting, offset: $offset, limit:$limit) {
                     ...fields
                 }
             }
@@ -86,25 +103,32 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             variables: (() => {
                 const sortField = options.sort?.sortBy;
                 const sortOrder = options.sort?.direction?.toUpperCase();
-                const sorting = sortField ? {
-                    sorting: {
-                        by: sortField,
-                        order: sortOrder ?? "ASC",
-                    }
-                } : undefined;
+                const sorting = sortField
+                    ? {
+                          sorting: {
+                              by: sortField,
+                              order: sortOrder ?? "ASC",
+                          },
+                      }
+                    : undefined;
 
-                const offset = options.offset ? {
-                    offset: options.offset
-                } : undefined;
+                const offset = options.offset
+                    ? {
+                          offset: options.offset,
+                      }
+                    : undefined;
 
-                const limit = options.limit ? {
-                    limit: options.limit
-                } : undefined;
+                const limit = options.limit
+                    ? {
+                          limit: options.limit,
+                      }
+                    : undefined;
 
                 return {
                     filter: filter.map((entry) => ({
                         ...entry,
-                        field: pieces.inputFieldMap?.[entry.field] ?? entry.field
+                        field:
+                            pieces.inputFieldMap?.[entry.field] ?? entry.field,
                     })),
                     ...sorting,
                     ...offset,
@@ -113,7 +137,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             })(),
             parseResult(response: { q: Entity[] }) {
                 return response.q;
-            }
+            },
         }),
 
         findOne: (ID: string | number) => ({
@@ -125,12 +149,11 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             }
             fragment fields on ${pieces.type} ${fragmentString} `,
             variables: {
-                ID
+                ID,
             },
             parseResult(response: { q: Entity }) {
                 return response.q;
-            }
-
+            },
         }),
 
         create: (entity: Entity) => ({
@@ -142,11 +165,11 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             }
             fragment fields on ${pieces.type} ${fragmentString} `,
             variables: {
-                input: mapInputValue(entity)
+                input: mapInputValue(entity),
             },
             parseResult(response: { m: Entity }) {
                 return response.m;
-            }
+            },
         }),
 
         update: (ID: string | number, entity: Entity) => ({
@@ -159,11 +182,11 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             fragment fields on ${pieces.type} ${fragmentString} `,
             variables: {
                 ID,
-                update: bodyOf(mapInputValue(entity))
+                update: bodyOf(mapInputValue(entity)),
             },
             parseResult(response: { m: Entity }) {
                 return response.m;
-            }
+            },
         }),
 
         delete: (ID: string | number) => ({
@@ -173,15 +196,14 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             }
             `,
             variables: {
-                ID
+                ID,
             },
             parseResult() {
                 //
-            }
-        })
+            },
+        }),
     };
 }
-
 
 export interface ConfiguredResource {
     resource: GraphQLResource;
@@ -190,33 +212,37 @@ export interface ConfiguredResource {
 }
 
 export interface ConfigureResourceOptions {
-    type: string,
-    pieces: Omit<BuildResourcePieces, "type">,
-    extras?: Partial<GraphQLResource>,
-    options?: ResourceOptions,
-    features?: FeatureType[],
-    resourceTranslations?: Partial<LocaleTranslationsBlock>,
+    type: string;
+    pieces: Omit<BuildResourcePieces, "type">;
+    extras?: Partial<GraphQLResource>;
+    options?: ResourceOptions;
+    features?: FeatureType[];
+    resourceTranslations?: Partial<LocaleTranslationsBlock>;
 }
 
-export function configureResource(options: ConfigureResourceOptions): ConfiguredResource {
+export function configureResource(
+    options: ConfigureResourceOptions
+): ConfiguredResource {
     const resource = {
         ...buildResource({
             ...options.pieces,
             type: options.type,
         }),
-        ...options.extras
+        ...options.extras,
     };
 
-    const configuration = (connection: GraphQLConnection): ResourceWithOptions => ({
+    const configuration = (
+        connection: GraphQLConnection
+    ): ResourceWithOptions => ({
         resource: connection.r[options.type],
         options: options.options ?? {},
-        features: options.features
+        features: options.features,
     });
 
     const translations = options.resourceTranslations
         ? {
-            [options.type]: options.resourceTranslations
-        }
+              [options.type]: options.resourceTranslations,
+          }
         : undefined;
 
     return {
@@ -228,7 +254,7 @@ export function configureResource(options: ConfigureResourceOptions): Configured
 
 function bodyOf(entity: Entity): Entity {
     const body = {
-        ...entity
+        ...entity,
     };
     delete body.ID;
     return body;
