@@ -16,7 +16,7 @@ interface Other {
     name: string;
 }
 
-type FilterOperation = "EQ" | "LTE" | "GTE";
+type FilterOperation = "EQ" | "LTE" | "GTE" | "MATCH";
 
 interface Filter {
     field: string;
@@ -28,25 +28,25 @@ interface Filter {
 const others: Other[] = [
     {
         ID: "74",
-        name: "Nail"
+        name: "Nail",
     },
     {
         ID: "91",
-        name: "Tooth"
-    }
+        name: "Tooth",
+    },
 ];
 
 const things: Thing[] = [
     {
         ID: "0",
         name: "Hammer",
-        another: [others[0]]
+        another: [others[0]],
     },
     {
         ID: "1",
         name: "Saw",
-        another: others
-    }
+        another: others,
+    },
 ];
 
 const graphqlServer = makeServerMiddleware({
@@ -72,6 +72,7 @@ const graphqlServer = makeServerMiddleware({
                 GTE
                 LTE
                 EQ
+                MATCH
             }
 
             input FilterInput {
@@ -81,12 +82,32 @@ const graphqlServer = makeServerMiddleware({
                 to: String
             }
 
+            enum SortOrder {
+                ASC
+                DESC
+            }
+
+            input SortingInput {
+                by: String!
+                order: SortOrder
+            }
+
             type Query {
-                things(filter: [FilterInput!], offset: Int! = 0, limit: Int! = 10): [Thing!]
+                things(
+                    filter: [FilterInput!]
+                    sorting: SortingInput
+                    offset: Int! = 0
+                    limit: Int! = 10
+                ): [Thing!]
                 thing(ID: ID!): Thing
                 thingCount(filter: [FilterInput!]): Int!
 
-                others(filter: [FilterInput!], offset: Int! = 0, limit: Int! = 10): [Other!]
+                others(
+                    filter: [FilterInput!]
+                    sorting: SortingInput
+                    offset: Int! = 0
+                    limit: Int! = 10
+                ): [Other!]
                 other(ID: ID!): Other
                 otherCount(filter: [FilterInput!]): Int!
             }
@@ -101,11 +122,10 @@ const graphqlServer = makeServerMiddleware({
     resolvers: [
         {
             Query: {
-                thing: (_parent, { ID }: { ID: string }) =>
-                    things[+ID],
+                thing: (_parent, { ID }: { ID: string }) => things[+ID],
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 things: (_parent, _args: { filter: Filter }) => {
-                    // Filtering is not implemented
+                    // Filtering and sorting are not implemented
                     return things;
                 },
                 thingCount: () => things.length,
@@ -114,7 +134,7 @@ const graphqlServer = makeServerMiddleware({
                     others.find((other) => other.ID === ID),
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 others: (_parent, _args: { filter: Filter }) => {
-                    // Filtering is not implemented
+                    // Filtering and sorting are not implemented
                     return others;
                 },
                 otherCount: () => others.length,
@@ -129,14 +149,14 @@ const graphqlServer = makeServerMiddleware({
                 deleteThing: () => {
                     throw new Error("Not implemented");
                 },
-            }
-        }
+            },
+        },
     ],
     playgroundEndpoint: "/playground",
-    plugins: [new LoggerPlugin()]
+    plugins: [new LoggerPlugin()],
 });
 
 app.use(graphqlServer);
 const server = app.listen(3000).on("listening", () => {
-    console.log("Example server listening at:", server.address());
+    console.log("Example server running at:", server.address());
 });

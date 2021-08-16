@@ -4,7 +4,10 @@
   "main": "index.js",
   "private": true,
   "scripts": {
-    "start": "ts-node server.ts"
+    "server": "ts-node server.ts",
+    "connection_example": "ts-node connection_example.ts",
+    "build_example": "ts-node build_example.ts",
+    "configure_example": "ts-node configure_example.ts"
   },
   "author": "Erik Agsjö",
   "license": "ISC",
