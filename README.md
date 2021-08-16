@@ -1,6 +1,6 @@
 # admin-bro-graphql
 
-This is an [admin-bro](https://github.com/SoftwareBrothers/admin-bro) adapter which integrates GraphQL endpoints into admin-bro.
+This is an [admin-bro](https://github.com/SoftwareBrothers/admin-bro) adapter integrating GraphQL endpoints into admin-bro.
 
 Installation: `npm add admin-bro-graphql`.
 
@@ -12,75 +12,121 @@ During initialization, the adapter will pull schema information from the GraphQL
 
 You can either pass the whole `GraphQLConnection` as a database to admin-bro, or pass each resource individually using the connection's `resources` map.
 
-The convoluted example below is a lucky example, since the GraphQL endpoint happens to match the filtering and pagination parameters passed by the adapter. In real situations, there will be more going on in the mapping implementation.
+See the example below for basic usage using the Koa AdminBro router.
+
+This convoluted example is a lucky example, since the GraphQL endpoint happens to match the filtering and pagination parameters passed by the adapter. In real situations, there will be more going on in the mapping implementation.
 
 The only required operations to implement are `count`, `find` and `findOne`. It's assumed that `find` and `findOne` return objects of the same shape.
 
+You might want to build your own utility toolset to simplify the adaption of you GraphQL API. 
+See [src/builder](src/builder) for an example of such a toolset.
+
 ```typescript
 import AdminBro, { BaseRecord } from "admin-bro";
-import { FieldFilter, FindOptions, GraphQLAdapter, GraphQLConnection } from "admin-bro-graphql";
+import Koa from "koa";
+import { buildRouter } from "@admin-bro/koa";
+import gql from "graphql-tag";
+
+import {
+    FieldFilter,
+    FindOptions,
+    GraphQLAdapter,
+    GraphQLConnection,
+} from "admin-bro-graphql";
+
 AdminBro.registerAdapter(GraphQLAdapter);
 
-const connection = new GraphQLConnection({ name: "Stuff", url: "http://localhost:3000/graphql" }, [
-    {
-        id: "things",
+const connection = new GraphQLConnection(
+    [
+        {
+            id: "Thing",
 
-        count: (filter: FieldFilter[]) => ({
-            query: `{
-                thingsCount(matching: $filter)
-            }`,
-            variables: {
-                filter
-            },
-            parseResult(result: Record<string, number>) {
-                return result.thingsCount;
-            }
-        }),
+            count: (filter: FieldFilter[]) => ({
+                query: gql`
+                    query ($filter: [FilterInput!]) {
+                        thingCount(filter: $filter)
+                    }
+                `,
+                variables: {
+                    filter,
+                },
+                parseResult(result: Record<string, number>) {
+                    return result.thingCount;
+                },
+            }),
 
-        find: (filter: FieldFilter[], options: FindOptions) => ({
-            query: `{
-                things(matching: $filter, offset: $offset, limit: $limit) {
-                    id
-                    name
-                    size
-                }
-            }`,
-            variables: {
-                filter,
-                offset: options.offset,
-                limit: options.limit,
-            },
-            parseResult(result: Record<string, BaseRecord[]>): BaseRecord[] {
-                return result.things;
-            }
-        }),
+            find: (filter: FieldFilter[], options: FindOptions) => ({
+                query: gql`
+                    query ($filter: [FilterInput!], $offset: Int, $limit: Int) {
+                        things(
+                            filter: $filter
+                            offset: $offset
+                            limit: $limit
+                        ) {
+                            ID
+                            name
+                        }
+                    }
+                `,
+                variables: {
+                    filter,
+                    offset: options.offset,
+                    limit: options.limit,
+                },
+                parseResult(
+                    result: Record<string, BaseRecord[]>
+                ): BaseRecord[] {
+                    return result.things;
+                },
+            }),
 
-        findOne: (id: string | number) => ({
-            query: `{
-                thingById(id: $id){
-                    id
-                    name
-                    size
-                }
-            }`,
-            variables: {
-                id
-            },
-            parseResult(result: Record<string, BaseRecord | null>) {
-                return result.thingById;
-            }
-        })
-    }
-]);
+            findOne: (ID: string | number) => ({
+                query: gql`
+                    query ($ID: ID!) {
+                        thing(ID: $ID) {
+                            ID
+                            name
+                        }
+                    }
+                `,
+                variables: {
+                    ID,
+                },
+                parseResult(result: Record<string, BaseRecord | null>) {
+                    return result.thing;
+                },
+            }),
+            sortableFields: ["name"],
+        },
+    ],
+    { name: "My stuff", url: "http://localhost:3000/graphql" },
+    (error: Error) => console.log(error)
+);
 
-connection.init().then(() => {
-    new AdminBro({
-        // databases: [connection],
-        resources: [{resource: connection.r.things}],
-        rootPath: "/admin",
+connection
+    .init()
+    .then(() => {
+        const app = new Koa();
+
+        const admin = new AdminBro({
+            resources: [
+                {
+                    resource: connection.r.Thing,
+                    options: {
+                        editProperties: ["name"],
+                        listProperties: ["ID", "name"],
+                    },
+                },
+            ],
+            rootPath: "/admin",
+        });
+
+        const router = buildRouter(admin, app);
+        app.use(router.routes());
+        app.listen(3001);
+    })
+    .catch((err: Error) => {
+        console.log(err.message);
     });
-}).catch((err: Error) => {
-    console.log(err.message);
-});
 
 ```
