@@ -1,6 +1,6 @@
 {
    "name": "admin-bro-graphql",
-   "version": "1.0.33",
+   "version": "1.1.0",
    "description": "admin-bro GraphQL adapter",
    "keywords": [
       "admin-bro",
