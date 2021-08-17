@@ -1,46 +1,107 @@
-import { DocumentNode, GraphQLNamedType, isInputType, GraphQLScalarType, GraphQLObjectType, GraphQLID, GraphQLType } from "graphql";
-import { PropertyType, ParamsType, BaseResource, BaseRecord, Filter, ForbiddenError, ValidationError, PropertyErrors } from "admin-bro";
+import {
+    DocumentNode,
+    GraphQLNamedType,
+    isInputType,
+    GraphQLScalarType,
+    GraphQLObjectType,
+    GraphQLID,
+    GraphQLType,
+} from "graphql";
+import {
+    ParamsType,
+    BaseResource,
+    BaseRecord,
+    Filter,
+    ForbiddenError,
+    ValidationError,
+    PropertyErrors,
+} from "admin-bro";
+
 import { GraphQLConnection } from ".";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";
 
+/**
+ * The actual GraphQL query/mutation that will be called to
+ * interact with the remote API.
+ */
 export interface GraphQLQueryMapping<T> {
+    // GQL code to pass to the API
     query: string | DocumentNode;
+    // Variables to parametrize the query
     variables?: Record<string, unknown>;
+    // Converts the record returned from the API
+    // to the type needed for the mapped operation.
     parseResult(result: Record<string, unknown>): T;
 }
 
+/**
+ * Pagination and sorting options passed to the find operation.
+ */
 export interface FindOptions {
     limit?: number;
     offset?: number;
     sort?: {
         sortBy?: string;
         direction?: "asc" | "desc";
-    }
+    };
 }
 
+/**
+ * GraphQLResource is the definition of how a GraphQL resource
+ * is mapped to an AdminBro resource.
+ */
 export interface GraphQLResource {
+    // Resource id, typically a GraphQL defined type
     id: string;
 
+    // List of all fields that the resource can be sorted by
     sortableFields?: string[];
-    // ??? Remove?
-    fieldTypes?: { [field: string]: PropertyType };
-    // ??? Remove?
+
+    // List of fields that are reference fields.
+    // By default, ID fields are treated as references.
     referenceFields?: { [field: string]: string };
+
+    // Set to true to make subproperties for object fields.
     makeSubproperties?: boolean;
 
-    // queries:
+    // Returns a query mapping providing the number of entities matching the filter.
     count: (filter: FieldFilter[]) => GraphQLQueryMapping<number>;
-    find: (filter: FieldFilter[], options: FindOptions) => GraphQLQueryMapping<ParamsType[]>;
+
+    // Returns a query mapping providing a list of entities matching
+    // the specified filter and options.
+    find: (
+        filter: FieldFilter[],
+        options: FindOptions
+    ) => GraphQLQueryMapping<ParamsType[]>;
+
+    // Returns a query mapping for retrieving the specified record.
     findOne: (id: string | number) => GraphQLQueryMapping<ParamsType | null>;
 
-    // mutations:
+    // Returns a query mapping for creating a record using the provided entity.
     create?: (record: ParamsType) => GraphQLQueryMapping<ParamsType>;
-    update?: (id: string | number, record: ParamsType) => GraphQLQueryMapping<ParamsType>;
+
+    // Returns a query mapping for updating a specified record.
+    update?: (
+        id: string | number,
+        record: ParamsType
+    ) => GraphQLQueryMapping<ParamsType>;
+
+    // Returns a query mapping for deleting a specified record.
     delete?: (id: string | number) => GraphQLQueryMapping<void>;
 }
 
+/**
+ * Filter operations for use in field filters.
+ * `MATCH` performs implementation (API) specific matching, and is used
+ * for filtering on string fields.
+ */
 export type FilterOperation = "GTE" | "LTE" | "EQ" | "MATCH";
 
+/**
+ * A filtering operation.
+ * The "than" and "to" fields specify the compare operand to the
+ * filter operation.
+ */
 export interface FieldFilter {
     field: string;
     is: FilterOperation;
@@ -53,7 +114,7 @@ export type InternalGraphQLResource = GraphQLResource & {
     connection?: GraphQLConnection;
     properties?: GraphQLPropertyAdapter[];
     typeMap?: Map<string, GraphQLNamedType>;
-}
+};
 
 export class GraphQLResourceAdapter extends BaseResource {
     private readonly connection: GraphQLConnection;
@@ -67,7 +128,8 @@ export class GraphQLResourceAdapter extends BaseResource {
         }
         this.connection = rawResource.connection;
         this.propertyMap = new Map(
-            rawResource.properties?.map((prop) => [prop.path(), prop]) ?? []);
+            rawResource.properties?.map((prop) => [prop.path(), prop]) ?? []
+        );
     }
 
     databaseName(): string {
@@ -125,10 +187,10 @@ export class GraphQLResourceAdapter extends BaseResource {
     }
 
     async findMany(ids: Array<string | number>): Promise<BaseRecord[]> {
-        const resolved = await Promise.all(
-            ids.map((id) => this.findOne(id))
+        const resolved = await Promise.all(ids.map((id) => this.findOne(id)));
+        return resolved.filter<BaseRecord>(
+            (record): record is BaseRecord => record != null
         );
-        return resolved.filter<BaseRecord>((record): record is BaseRecord => (record != null));
     }
 
     private convertParams(params: ParamsType): ParamsType {
@@ -152,7 +214,7 @@ export class GraphQLResourceAdapter extends BaseResource {
                     [key]: {
                         type: "conversion",
                         message: error.message,
-                    }
+                    },
                 });
             }
         }, {} as ParamsType);
@@ -171,7 +233,10 @@ export class GraphQLResourceAdapter extends BaseResource {
             const value = params[key];
 
             // Skip properties that are not being edited
-            if (editProperties.length && !editProperties.includes(property?.property.path() ?? "")) {
+            if (
+                editProperties.length &&
+                !editProperties.includes(property?.property.path() ?? "")
+            ) {
                 continue;
             }
 
@@ -180,12 +245,13 @@ export class GraphQLResourceAdapter extends BaseResource {
                 continue;
             }
 
-            const required = property?.options.isRequired ?? property?.isRequired();
+            const required =
+                property?.options.isRequired ?? property?.isRequired();
             if (required) {
                 if (value == "" || value == null || value == undefined) {
                     errors[key] = {
                         type: "required",
-                        message: "Required field"
+                        message: "Required field",
                     };
                 }
             }
@@ -239,14 +305,22 @@ export class GraphQLResourceAdapter extends BaseResource {
         return internalResource.tag == "GraphQLResource";
     }
 
-    private async executeMapping<T = Record<string, unknown>>(mapping: GraphQLQueryMapping<T>): Promise<T> {
-        const queryString = typeof mapping.query === "string"
-            ? mapping.query
-            : mapping.query.loc?.source.body;
+    private async executeMapping<T = Record<string, unknown>>(
+        mapping: GraphQLQueryMapping<T>
+    ): Promise<T> {
+        const queryString =
+            typeof mapping.query === "string"
+                ? mapping.query
+                : mapping.query.loc?.source.body;
         if (!queryString) {
-            this.connection.reportAndThrow(new Error("Unexpected parsed query without body"));
+            this.connection.reportAndThrow(
+                new Error("Unexpected parsed query without body")
+            );
         }
-        const result = await this.connection.request(queryString, mapping.variables);
+        const result = await this.connection.request(
+            queryString,
+            mapping.variables
+        );
         const parsed = mapping.parseResult(result);
         if (!this.rawResource.makeSubproperties) {
             if (parsed instanceof Array) {
@@ -260,10 +334,14 @@ export class GraphQLResourceAdapter extends BaseResource {
 
     private mapFilter(filter: Filter): FieldFilter[] {
         return filter.reduce<FieldFilter[]>((mapped, element) => {
-
-            const from = typeof element.value == "string" ? element.value : element.value.from;
-            const to = typeof element.value == "string" ? from : element.value.to;
-            const matchOperation: FilterOperation = element.property.type() === "string" ? "MATCH" : "EQ";
+            const from =
+                typeof element.value == "string"
+                    ? element.value
+                    : element.value.from;
+            const to =
+                typeof element.value == "string" ? from : element.value.to;
+            const matchOperation: FilterOperation =
+                element.property.type() === "string" ? "MATCH" : "EQ";
 
             let graphQLType = this.rawResource.typeMap?.get(element.path);
             if (graphQLType instanceof GraphQLObjectType) {
@@ -272,7 +350,9 @@ export class GraphQLResourceAdapter extends BaseResource {
 
             if (!graphQLType || !isInputType(graphQLType)) {
                 this.connection.reportAndThrow(
-                    new Error(`Cannot get valid GraphQL type from ${this.rawResource.id}:${element.path}`)
+                    new Error(
+                        `Cannot get valid GraphQL type from ${this.rawResource.id}:${element.path}`
+                    )
                 );
             }
 
@@ -283,36 +363,32 @@ export class GraphQLResourceAdapter extends BaseResource {
                 mapped.push({
                     field: element.property.path(),
                     is: matchOperation,
-                    to: coercedFrom
+                    to: coercedFrom,
                 });
             } else {
                 if (from !== undefined && from != "") {
-                    mapped.push(
-                        {
-                            field: element.property.path(),
-                            is: "GTE",
-                            to: coercedFrom,
-                        },
-                    );
+                    mapped.push({
+                        field: element.property.path(),
+                        is: "GTE",
+                        to: coercedFrom,
+                    });
                 }
                 if (to !== undefined && to != "") {
-                    mapped.push(
-                        {
-                            field: element.property.path(),
-                            is: "LTE",
-                            to: coercedTo,
-                        }
-                    );
-
+                    mapped.push({
+                        field: element.property.path(),
+                        is: "LTE",
+                        to: coercedTo,
+                    });
                 }
             }
             return mapped;
         }, []);
     }
-
 }
 
-function inflateParams(params: Record<string, unknown>): Record<string, unknown> {
+function inflateParams(
+    params: Record<string, unknown>
+): Record<string, unknown> {
     const record: Record<string, unknown> = {};
 
     for (const path of Object.keys(params)) {
@@ -339,7 +415,6 @@ function inflateParams(params: Record<string, unknown>): Record<string, unknown>
         } else {
             object[steps[0]] = params[path];
         }
-
     }
 
     return record;
@@ -356,7 +431,9 @@ function deflateParams<T>(params: T, IDField = "ID"): T {
     for (const key of Object.keys(typed)) {
         let param = typed[key];
         if (typeof param === "object" && param !== null) {
-            const deflated = deflateParams<Record<string, unknown>>(param as Record<string, unknown>);
+            const deflated = deflateParams<Record<string, unknown>>(
+                param as Record<string, unknown>
+            );
             const deflatedKeys = Object.keys(deflated);
             if (deflatedKeys.length === 1 && IDField in deflated) {
                 // Reference hack!

@@ -1,7 +1,4 @@
-
-import {
-    PropertyType,
-} from "admin-bro";
+import { PropertyType } from "admin-bro";
 
 import {
     getIntrospectionQuery,
@@ -31,12 +28,21 @@ import { GraphQLClient } from "./GraphQLClient";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";
 import { InternalGraphQLResource, GraphQLResource } from "./GraphQLResource";
 
+/**
+ * Options for the GraphQL connection.
+ * Use `headers` to set api key, et.c.
+ */
 export interface ConnectionOptions {
     name?: string;
     url?: string;
     headers?: () => Record<string, string>;
 }
 
+/**
+ * GraphQLConnection connects to a GraphQL API, and initializes a list of
+ * configured resources with data from the remote API schema, so that they
+ * can be used as AdminBro resources.
+ */
 export class GraphQLConnection {
     readonly tag = "GraphQLConnection";
     readonly client: GraphQLClient;
@@ -46,7 +52,7 @@ export class GraphQLConnection {
     constructor(
         public readonly resources: GraphQLResource[],
         options?: ConnectionOptions,
-        private readonly onError?: (error: Error) => void,
+        private readonly onError?: (error: Error) => void
     ) {
         this.name = options?.name ?? "graphql";
         const url = options?.url ?? "http://localhost:3000/graphql";
@@ -63,151 +69,7 @@ export class GraphQLConnection {
 
     async init(): Promise<void> {
         const fullSchema = await this.fetchSchema();
-
-        this.resources.map((res) => res as InternalGraphQLResource)
-            .map((resource) => {
-                const findMapping = resource.findOne(42);
-                let parsed =
-                    (typeof findMapping.query === "string")
-                        ? parse(findMapping.query)
-                        : findMapping.query;
-
-                const typeInfo = new TypeInfo(fullSchema);
-                const path: string[] = [];
-                resource.typeMap = new Map();
-                resource.connection = this;
-                resource.tag = "GraphQLResource";
-
-                parsed = expandFragments(parsed);
-                const operationDefinition = parsed.definitions.find((def): def is OperationDefinitionNode => def.kind === "OperationDefinition");
-                if (!operationDefinition) {
-                    throw new Error("Document without operation is not allowed");
-                }
-                const toplevelSelections = operationDefinition.selectionSet.selections;
-                if (toplevelSelections.length !== 1) {
-                    throw new Error("Top level selections must contain exactly one field");
-                }
-                const topNode = operationDefinition;
-
-                // Initialize with "root" object
-                const objectStack: GraphQLPropertyAdapter[][] = [[]];
-                const propertyMap = new Map<string, GraphQLPropertyAdapter>();
-
-                visit(topNode, visitWithTypeInfo(typeInfo, {
-                    Field: {
-                        enter: (field) => {
-                            const parentType = typeInfo.getParentType();
-                            if (parentType?.name === "Query" || parentType?.name === "Mutation") {
-                                return;
-                            }
-                            const fieldName = field.name.value;
-
-                            let graphQLType = typeInfo.getType();
-                            if (!graphQLType) {
-                                throw new Error(`Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`);
-                            }
-
-                            let isArray = false;
-                            let isRequired = false;
-
-                            while (isWrappingType(graphQLType)) {
-                                if (graphQLType instanceof GraphQLList) {
-                                    isArray = true;
-                                } else if (graphQLType instanceof GraphQLNonNull && !isArray) {
-                                    isRequired = true;
-                                }
-                                graphQLType = graphQLType.ofType as GraphQLOutputType;
-                            }
-                            const namedType = graphQLType;
-
-                            let enumValues: string[] | undefined;
-                            if (namedType instanceof GraphQLEnumType) {
-                                enumValues = namedType.getValues().map((val) => val.value);
-                            }
-
-                            const parentPath = path.join(".");
-                            const propertyPath = [...path, fieldName].join(".");
-
-                            let propertyType: PropertyType | undefined;
-                            let referencing: string | undefined;
-
-                            if (namedType instanceof GraphQLObjectType) {
-                                const objectFields = namedType.getFields();
-                                const selections = field.selectionSet?.selections ?? [];
-                                if (selections.length === 1 && selections[0].kind === "Field") {
-                                    const fieldName = selections[0].name.value;
-                                    const objectField = objectFields[fieldName];
-                                    if (!objectField) {
-                                        throw new Error(`Field ${fieldName} is not in ${namedType.name}`);
-                                    }
-                                    const fieldType = objectField.type;
-                                    if (typeIsID(fieldType)) {
-                                        propertyType = "reference";
-                                        referencing = namedType.name;
-                                    }
-                                }
-                            }
-
-                            if (!propertyType) {
-                                propertyType =
-                                    (propertyPath in (resource.referenceFields ?? {}) && "reference") ||
-                                    resource.fieldTypes?.[propertyPath] ||
-                                    (enumValues?.length && "string") ||
-                                    GraphQLConnection.graphQLTypeToPropertyType(namedType);
-                            }
-
-                            const isSortable = resource.sortableFields ? resource.sortableFields.includes(propertyPath) : propertyType != "reference";
-
-                            const parentProperty = propertyMap.get(parentPath);
-                            const useFullPath = !resource.makeSubproperties &&
-                                !(parentProperty?.type() === "mixed" && parentProperty?.isArray());
-
-                            const property = new GraphQLPropertyAdapter({
-                                path: useFullPath ? propertyPath : fieldName,
-                                type: propertyType,
-                                isId: namedType.name === "ID" && propertyType !== "reference",
-                                isSortable: isSortable,
-                                referencing: referencing ?? resource.referenceFields?.[propertyPath],
-                                enumValues,
-                                isArray,
-                                isRequired
-                            });
-
-                            objectStack[objectStack.length - 1].push(property);
-                            propertyMap.set(propertyPath, property);
-                            resource.typeMap?.set(propertyPath, namedType);
-
-                            if (field.selectionSet) {
-                                path.push(fieldName);
-                                objectStack.push([]);
-                            }
-                        },
-                        leave: (field) => {
-                            const parentType = typeInfo.getParentType()?.name;
-                            if (parentType === "Query" || parentType === "Mutation") {
-                                return;
-                            }
-                            if (field.selectionSet) {
-                                path.pop();
-                                const currentObject = objectStack.pop();
-                                if (currentObject === undefined) {
-                                    throw new Error("Unexpected empty object");
-                                }
-                                const lastObject = objectStack[objectStack.length - 1];
-                                const lastProperty = lastObject[lastObject.length - 1];
-
-                                if (lastProperty && ((lastProperty.type() === "mixed" && lastProperty.isArray()) || resource.makeSubproperties)) {
-                                    lastProperty.setSubProperties(currentObject);
-                                } else if (currentObject.length !== 1 || !currentObject[0].isId()) {
-                                    lastObject.push(...currentObject);
-                                }
-                            }
-                        }
-                    },
-                }));
-
-                resource.properties = objectStack.pop()?.filter((prop) => prop.type() !== "mixed" || prop.subProperties().length);
-            });
+        await this.inflateResources(fullSchema);
     }
 
     private async fetchSchema(): Promise<GraphQLSchema> {
@@ -216,7 +78,9 @@ export class GraphQLConnection {
         return buildClientSchema(result);
     }
 
-    private static graphQLTypeToPropertyType(graphQLType: GraphQLNamedType): PropertyType {
+    private static graphQLTypeToPropertyType(
+        graphQLType: GraphQLNamedType
+    ): PropertyType {
         switch (graphQLType.name) {
             case "String":
             case "ID":
@@ -234,16 +98,254 @@ export class GraphQLConnection {
         }
     }
 
-    private formatGraphQLErrors(errors: GraphQLFormattedError[]): string {
-        return "GraphQL request error: " + errors.map((error) => error.message).join(", ");
+    private async inflateResources(schema: GraphQLSchema) {
+        this.resources
+            .map((res) => res as InternalGraphQLResource)
+            .map((resource) => {
+                const findMapping = resource.findOne(42);
+                let parsed =
+                    typeof findMapping.query === "string"
+                        ? parse(findMapping.query)
+                        : findMapping.query;
+
+                const typeInfo = new TypeInfo(schema);
+                const path: string[] = [];
+                resource.typeMap = new Map();
+                resource.connection = this;
+                resource.tag = "GraphQLResource";
+
+                parsed = expandFragments(parsed);
+                const operationDefinition = parsed.definitions.find(
+                    (def): def is OperationDefinitionNode =>
+                        def.kind === "OperationDefinition"
+                );
+                if (!operationDefinition) {
+                    throw new Error(
+                        "Document without operation is not allowed"
+                    );
+                }
+                const toplevelSelections =
+                    operationDefinition.selectionSet.selections;
+                if (toplevelSelections.length !== 1) {
+                    throw new Error(
+                        "Top level selections must contain exactly one field"
+                    );
+                }
+                const topNode = operationDefinition;
+
+                // Initialize with "root" object
+                const objectStack: GraphQLPropertyAdapter[][] = [[]];
+                const propertyMap = new Map<string, GraphQLPropertyAdapter>();
+
+                visit(
+                    topNode,
+                    visitWithTypeInfo(typeInfo, {
+                        Field: {
+                            enter: (field) => {
+                                const parentType = typeInfo.getParentType();
+                                if (
+                                    parentType?.name === "Query" ||
+                                    parentType?.name === "Mutation"
+                                ) {
+                                    return;
+                                }
+                                const fieldName = field.name.value;
+
+                                let graphQLType = typeInfo.getType();
+                                if (!graphQLType) {
+                                    throw new Error(
+                                        `Unexpected empty type for field "${fieldName}" of resource "${resource.id}"`
+                                    );
+                                }
+
+                                let isArray = false;
+                                let isRequired = false;
+
+                                while (isWrappingType(graphQLType)) {
+                                    if (graphQLType instanceof GraphQLList) {
+                                        isArray = true;
+                                    } else if (
+                                        graphQLType instanceof GraphQLNonNull &&
+                                        !isArray
+                                    ) {
+                                        isRequired = true;
+                                    }
+                                    graphQLType =
+                                        graphQLType.ofType as GraphQLOutputType;
+                                }
+                                const namedType = graphQLType;
+
+                                let enumValues: string[] | undefined;
+                                if (namedType instanceof GraphQLEnumType) {
+                                    enumValues = namedType
+                                        .getValues()
+                                        .map((val) => val.value);
+                                }
+
+                                const parentPath = path.join(".");
+                                const propertyPath = [...path, fieldName].join(
+                                    "."
+                                );
+
+                                let propertyType: PropertyType | undefined;
+                                let referencing: string | undefined;
+
+                                if (namedType instanceof GraphQLObjectType) {
+                                    const objectFields = namedType.getFields();
+                                    const selections =
+                                        field.selectionSet?.selections ?? [];
+                                    if (
+                                        selections.length === 1 &&
+                                        selections[0].kind === "Field"
+                                    ) {
+                                        const fieldName =
+                                            selections[0].name.value;
+                                        const objectField =
+                                            objectFields[fieldName];
+                                        if (!objectField) {
+                                            throw new Error(
+                                                `Field ${fieldName} is not in ${namedType.name}`
+                                            );
+                                        }
+                                        const fieldType = objectField.type;
+                                        if (typeIsID(fieldType)) {
+                                            propertyType = "reference";
+                                            referencing = namedType.name;
+                                        }
+                                    }
+                                }
+
+                                if (!propertyType) {
+                                    propertyType =
+                                        (propertyPath in
+                                            (resource.referenceFields ?? {}) &&
+                                            "reference") ||
+                                        (enumValues?.length && "string") ||
+                                        GraphQLConnection.graphQLTypeToPropertyType(
+                                            namedType
+                                        );
+                                }
+
+                                const isSortable = resource.sortableFields
+                                    ? resource.sortableFields.includes(
+                                          propertyPath
+                                      )
+                                    : propertyType != "reference";
+
+                                const parentProperty =
+                                    propertyMap.get(parentPath);
+                                const useFullPath =
+                                    !resource.makeSubproperties &&
+                                    !(
+                                        parentProperty?.type() === "mixed" &&
+                                        parentProperty?.isArray()
+                                    );
+
+                                const property = new GraphQLPropertyAdapter({
+                                    path: useFullPath
+                                        ? propertyPath
+                                        : fieldName,
+                                    type: propertyType,
+                                    isId:
+                                        namedType.name === "ID" &&
+                                        propertyType !== "reference",
+                                    isSortable: isSortable,
+                                    referencing:
+                                        referencing ??
+                                        resource.referenceFields?.[
+                                            propertyPath
+                                        ],
+                                    enumValues,
+                                    isArray,
+                                    isRequired,
+                                });
+
+                                objectStack[objectStack.length - 1].push(
+                                    property
+                                );
+                                propertyMap.set(propertyPath, property);
+                                resource.typeMap?.set(propertyPath, namedType);
+
+                                if (field.selectionSet) {
+                                    path.push(fieldName);
+                                    objectStack.push([]);
+                                }
+                            },
+                            leave: (field) => {
+                                const parentType =
+                                    typeInfo.getParentType()?.name;
+                                if (
+                                    parentType === "Query" ||
+                                    parentType === "Mutation"
+                                ) {
+                                    return;
+                                }
+                                if (field.selectionSet) {
+                                    path.pop();
+                                    const currentObject = objectStack.pop();
+                                    if (currentObject === undefined) {
+                                        throw new Error(
+                                            "Unexpected empty object"
+                                        );
+                                    }
+                                    const lastObject =
+                                        objectStack[objectStack.length - 1];
+                                    const lastProperty =
+                                        lastObject[lastObject.length - 1];
+
+                                    if (
+                                        lastProperty &&
+                                        ((lastProperty.type() === "mixed" &&
+                                            lastProperty.isArray()) ||
+                                            resource.makeSubproperties)
+                                    ) {
+                                        lastProperty.setSubProperties(
+                                            currentObject
+                                        );
+                                    } else if (
+                                        currentObject.length !== 1 ||
+                                        !currentObject[0].isId()
+                                    ) {
+                                        lastObject.push(...currentObject);
+                                    }
+                                }
+                            },
+                        },
+                    })
+                );
+
+                resource.properties = objectStack
+                    .pop()
+                    ?.filter(
+                        (prop) =>
+                            prop.type() !== "mixed" ||
+                            prop.subProperties().length
+                    );
+            });
     }
 
-    async request<T = Record<string, unknown>>(document: string, variables?: Record<string, unknown>): Promise<T> {
+    private formatGraphQLErrors(errors: GraphQLFormattedError[]): string {
+        return (
+            "GraphQL request error: " +
+            errors.map((error) => error.message).join(", ")
+        );
+    }
+
+    async request<T = Record<string, unknown>>(
+        document: string,
+        variables?: Record<string, unknown>
+    ): Promise<T> {
         try {
             const headers = this.headers?.();
-            const response = await this.client.request<T>(document, variables, headers);
+            const response = await this.client.request<T>(
+                document,
+                variables,
+                headers
+            );
             if (response.errors?.length) {
-                this.reportAndThrow(new Error(this.formatGraphQLErrors(response.errors)));
+                this.reportAndThrow(
+                    new Error(this.formatGraphQLErrors(response.errors))
+                );
             }
             return response.data;
         } catch (thrown) {
@@ -263,20 +365,25 @@ export class GraphQLConnection {
 }
 
 interface GraphQLResourceMap {
-    [key: string]: GraphQLResource
+    [key: string]: GraphQLResource;
 }
 
 function expandFragments(node: DocumentNode): DocumentNode {
-    const fragmentDefinitions = node.definitions.filter((def): def is FragmentDefinitionNode => def.kind === "FragmentDefinition");
+    const fragmentDefinitions = node.definitions.filter(
+        (def): def is FragmentDefinitionNode =>
+            def.kind === "FragmentDefinition"
+    );
 
     return visit(node, {
         FragmentSpread: (spread) => {
-            const fragment = fragmentDefinitions.find((def) => def.name.value === spread.name.value);
+            const fragment = fragmentDefinitions.find(
+                (def) => def.name.value === spread.name.value
+            );
             if (!fragment) {
                 throw new Error("Invalid spread reference");
             }
             return fragment.selectionSet;
-        }
+        },
     });
 }
 
@@ -284,5 +391,5 @@ function typeIsID(fieldType: GraphQLType): boolean {
     while (isWrappingType(fieldType)) {
         fieldType = fieldType.ofType;
     }
-    return (fieldType === GraphQLID);
+    return fieldType === GraphQLID;
 }

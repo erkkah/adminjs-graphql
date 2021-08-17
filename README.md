@@ -4,7 +4,11 @@ This is an [admin-bro](https://github.com/SoftwareBrothers/admin-bro) adapter in
 
 Installation: `npm add admin-bro-graphql`.
 
-## Usage
+This adapter lets you define AdminBro resources in terms of GraphQL queries and mutations.
+
+Also, the adapter exposes the GraphQL connection, making it possible to do direct calls to the remote API from actions, et.c.
+
+## Registering and defining resources
 
 Register the adapter using the standard `AdminBro.registerAdapter` method, then map each resource to GraphQL queries and mutations. Don't forget to initialize the connection before passing it to the `AdminBro` constructor.
 
@@ -20,6 +24,26 @@ The only required operations to implement are `count`, `find` and `findOne`. It'
 
 You might want to build your own utility toolset to simplify the adaption of you GraphQL API. 
 See [src/builder](src/builder) for an example of such a toolset.
+
+## Using the connection GraphQL connection from an action
+
+With `context` being an ActionContext:
+
+```typescript
+const graphQLResource = context.resource as GraphQLResourceAdapter;
+const connection = graphQLResource.rawResource.connection;
+
+const mutation = `
+mutation ($answer: Int!) {
+    setAnswer(answer: $answer)
+}`;
+
+const response = await connection.request(mutation, {
+    answer: 42,
+});
+```
+
+## Complete resource example
 
 ```typescript
 import AdminBro, { BaseRecord } from "admin-bro";
