@@ -25,7 +25,7 @@ The only required operations to implement are `count`, `find` and `findOne`. It'
 You might want to build your own utility toolset to simplify the adaption of you GraphQL API. 
 See [src/builder](src/builder) for an example of such a toolset.
 
-## Using the connection GraphQL connection from an action
+## Using the GraphQL connection from an action
 
 With `context` being an ActionContext:
 
