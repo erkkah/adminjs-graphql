@@ -1,6 +1,6 @@
-import AdminBro from "admin-bro";
+import AdminJS from "adminjs";
 import Koa from "koa";
-import { buildRouter } from "@admin-bro/koa";
+import { buildRouter } from "@adminjs/koa";
 import gql from "graphql-tag";
 
 import {
@@ -9,7 +9,7 @@ import {
     GraphQLConnection,
 } from "admin-bro-graphql";
 
-AdminBro.registerAdapter(GraphQLAdapter);
+AdminJS.registerAdapter(GraphQLAdapter);
 
 const connection = new GraphQLConnection(
     [
@@ -34,7 +34,7 @@ connection
     .then(() => {
         const app = new Koa();
 
-        const admin = new AdminBro({
+        const admin = new AdminJS({
             resources: [
                 {
                     resource: connection.r.Thing,
