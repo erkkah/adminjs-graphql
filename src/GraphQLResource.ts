@@ -15,7 +15,7 @@ import {
     ForbiddenError,
     ValidationError,
     PropertyErrors,
-} from "admin-bro";
+} from "adminjs";
 
 import { GraphQLConnection } from ".";
 import { GraphQLPropertyAdapter } from "./GraphQLProperty";

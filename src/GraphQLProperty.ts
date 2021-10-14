@@ -1,4 +1,4 @@
-import { PropertyType, BaseProperty } from "admin-bro";
+import { PropertyType, BaseProperty } from "adminjs";
 
 interface BasePropertyAttrs {
     path: string;
@@ -15,12 +15,14 @@ export class GraphQLPropertyAdapter extends BaseProperty {
     private _isArray?: boolean;
     private _isRequired?: boolean;
 
-    constructor(property: BasePropertyAttrs & {
-        referencing?: string;
-        enumValues?: string[];
-        isArray?: boolean,
-        isRequired?: boolean,
-    }) {
+    constructor(
+        property: BasePropertyAttrs & {
+            referencing?: string;
+            enumValues?: string[];
+            isArray?: boolean;
+            isRequired?: boolean;
+        }
+    ) {
         super(property);
         this._referencing = property.referencing;
         this._enumValues = property.enumValues;
@@ -51,5 +53,4 @@ export class GraphQLPropertyAdapter extends BaseProperty {
     isRequired(): boolean {
         return this._isRequired ?? false;
     }
-
 }
