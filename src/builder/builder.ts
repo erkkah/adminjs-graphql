@@ -6,7 +6,7 @@ import {
     LocaleTranslations,
     LocaleTranslationsBlock,
     FeatureType,
-} from "admin-bro";
+} from "adminjs";
 import { FindOptions } from "../GraphQLResource";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,15 +43,15 @@ export interface BuildResourcePieces {
     inputType?: string;
 
     /**
-     * Maps from admin-bro entity field names to corresponding GraphQL field names
+     * Maps from adminjs entity field names to corresponding GraphQL field names
      * for count and find filtering, create and update.
      *
-     * By default, the admin-bro object is passed as is without any renaming of fields.
+     * By default, the adminjs object is passed as is without any renaming of fields.
      */
     inputFieldMap?: Record<string, string>;
 
     /**
-     * Extends the default mapping from admin-bro entity to the corresponding
+     * Extends the default mapping from adminjs entity to the corresponding
      * GraphQL input object for create and update mutations.
      *
      * Note that this extends the default mapping, which might have used the

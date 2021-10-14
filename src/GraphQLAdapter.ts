@@ -1,6 +1,9 @@
-import { BaseDatabase, BaseResource } from "admin-bro";
+import { BaseDatabase, BaseResource } from "adminjs";
 import { GraphQLConnection } from ".";
-import { GraphQLResourceAdapter, InternalGraphQLResource } from "./GraphQLResource";
+import {
+    GraphQLResourceAdapter,
+    InternalGraphQLResource,
+} from "./GraphQLResource";
 
 class GraphQLDatabaseAdapter extends BaseDatabase {
     public constructor(public readonly connection: GraphQLConnection) {
@@ -8,8 +11,9 @@ class GraphQLDatabaseAdapter extends BaseDatabase {
     }
 
     public resources(): Array<BaseResource> {
-        return this.connection.resources
-            .map((r) => new GraphQLResourceAdapter(r as InternalGraphQLResource));
+        return this.connection.resources.map(
+            (r) => new GraphQLResourceAdapter(r as InternalGraphQLResource)
+        );
     }
 
     public static isAdapterFor(connection: GraphQLConnection): boolean {

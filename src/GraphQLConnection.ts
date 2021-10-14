@@ -1,4 +1,4 @@
-import { PropertyType } from "admin-bro";
+import { PropertyType } from "adminjs";
 
 import {
     getIntrospectionQuery,
