@@ -1,22 +1,22 @@
-# admin-bro-graphql
+# adminjs-graphql
 
-This is an [admin-bro](https://github.com/SoftwareBrothers/admin-bro) adapter integrating GraphQL endpoints into admin-bro.
+This is an [adminjs](https://github.com/SoftwareBrothers/adminjs) adapter integrating GraphQL endpoints into adminjs.
 
-Installation: `npm add admin-bro-graphql`.
+Installation: `npm add adminjs-graphql`.
 
-This adapter lets you define AdminBro resources in terms of GraphQL queries and mutations.
+This adapter lets you define AdminJS resources in terms of GraphQL queries and mutations.
 
 Also, the adapter exposes the GraphQL connection, making it possible to do direct calls to the remote API from actions, et.c.
 
 ## Registering and defining resources
 
-Register the adapter using the standard `AdminBro.registerAdapter` method, then map each resource to GraphQL queries and mutations. Don't forget to initialize the connection before passing it to the `AdminBro` constructor.
+Register the adapter using the standard `AdminJS.registerAdapter` method, then map each resource to GraphQL queries and mutations. Don't forget to initialize the connection before passing it to the `AdminJS` constructor.
 
 During initialization, the adapter will pull schema information from the GraphQL endpoint, and populate the resource properties.
 
-You can either pass the whole `GraphQLConnection` as a database to admin-bro, or pass each resource individually using the connection's `resources` map.
+You can either pass the whole `GraphQLConnection` as a database to adminjs, or pass each resource individually using the connection's `resources` map.
 
-See the example below for basic usage using the Koa AdminBro router.
+See the example below for basic usage using the Koa AdminJS router.
 
 This convoluted example is a lucky example, since the GraphQL endpoint happens to match the filtering and pagination parameters passed by the adapter. In real situations, there will be more going on in the mapping implementation.
 
@@ -46,9 +46,9 @@ const response = await connection.request(mutation, {
 ## Complete resource example
 
 ```typescript
-import AdminBro, { BaseRecord } from "admin-bro";
+import AdminJS, { BaseRecord } from "adminjs";
 import Koa from "koa";
-import { buildRouter } from "@admin-bro/koa";
+import { buildRouter } from "@adminjs/koa";
 import gql from "graphql-tag";
 
 import {
@@ -56,9 +56,9 @@ import {
     FindOptions,
     GraphQLAdapter,
     GraphQLConnection,
-} from "admin-bro-graphql";
+} from "adminjs-graphql";
 
-AdminBro.registerAdapter(GraphQLAdapter);
+AdminJS.registerAdapter(GraphQLAdapter);
 
 const connection = new GraphQLConnection(
     [
@@ -132,7 +132,7 @@ connection
     .then(() => {
         const app = new Koa();
 
-        const admin = new AdminBro({
+        const admin = new AdminJS({
             resources: [
                 {
                     resource: connection.r.Thing,
