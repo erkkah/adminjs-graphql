@@ -248,7 +248,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             const required =
                 property?.options.isRequired ?? property?.isRequired();
             if (required) {
-                if (value == "" || value == null || value == undefined) {
+                if (value === "" || value === null || value === undefined) {
                     errors[key] = {
                         type: "required",
                         message: "Required field",
