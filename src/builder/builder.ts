@@ -57,7 +57,9 @@ export interface BuildResourcePieces {
      * Note that this extends the default mapping, which might have used the
      * specified `inputFieldMap`. Also, the fields returned are added to the
      * original entity object. Existing fields are replaced.
-     *
+     * 
+     * To remove a field, set the value to `undefined`.
+     * 
      * @param input An AdminBro entity object
      * @returns A subset of fields to replace or add to the object
      */
