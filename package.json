@@ -20,7 +20,8 @@
       "test": "jest",
       "build": "tsc",
       "prepare": "rm -rf lib && npm run build",
-      "lint": "eslint src/*"
+      "lint": "eslint src/*",
+      "prepack": "tsc"
    },
    "author": "Erik Agsjö",
    "license": "ISC",
