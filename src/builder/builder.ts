@@ -238,7 +238,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
 
         create: (entity: Entity) => ({
             query: `
-            mutation($input: ${inputType}!) {
+            mutation($input: ${inputType}!) ${queryDirectives} {
                 m: ${createMutation} (input: $input) {
                     ...fields
                 }
@@ -254,7 +254,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
 
         update: (ID: string | number, entity: Entity) => ({
             query: `
-            mutation($ID: ID!, $update: ${inputType}!) {
+            mutation($ID: ID!, $update: ${inputType}!) ${queryDirectives} {
                 m: ${updateMutation} (${IDField}: $ID, update: $update) {
                     ...fields
                 }
@@ -271,7 +271,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
 
         delete: (ID: string | number) => ({
             query: `
-            mutation($ID: ID!) {
+            mutation($ID: ID!) ${queryDirectives} {
                 m: ${deleteMutation} (${IDField}: $ID)
             }
             `,
