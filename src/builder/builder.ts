@@ -105,6 +105,12 @@ export interface BuildResourcePieces {
         update?: string;
         delete?: string;
     };
+
+    /**
+     * Query level directives that will be applied to
+     * all queries for this resource.
+     */
+    queryDirectives?: string;
 }
 
 /**
@@ -120,6 +126,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
             ? pieces.fragment
             : pieces.fragment.loc?.source.body
     )?.trim();
+    const queryDirectives = pieces.queryDirectives ?? "";
     const inputType = pieces.inputType || `${pieces.type}Input`;
     const upperTail = singular[0].toUpperCase() + singular.slice(1);
     const createMutation = pieces.mutations?.create || "create" + upperTail;
@@ -147,7 +154,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
         id: pieces.type,
         count: (filter: FieldFilter[]) => ({
             query: `
-            query($filter: [FilterInput!]) {
+            query($filter: [FilterInput!]) ${queryDirectives} {
                 count: ${
                     pieces.queries?.count || `${singular}Count`
                 }(filter: $filter)
@@ -165,7 +172,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
 
         find: (filter: FieldFilter[], options: FindOptions) => ({
             query: `
-            query($filter: [FilterInput!], $sorting: SortingInput, $offset: Int, $limit: Int) {
+            query($filter: [FilterInput!], $sorting: SortingInput, $offset: Int, $limit: Int) ${queryDirectives} {
                 q: ${
                     pieces.queries?.find || plural
                 }(filter: $filter, sorting: $sorting, offset: $offset, limit:$limit) {
@@ -215,7 +222,7 @@ export function buildResource(pieces: BuildResourcePieces): GraphQLResource {
 
         findOne: (ID: string | number) => ({
             query: `
-            query($ID: ID!){
+            query($ID: ID!) ${queryDirectives} {
                 q: ${pieces.queries?.get || singular} (${IDField}: $ID) {
                     ...fields
                 }
