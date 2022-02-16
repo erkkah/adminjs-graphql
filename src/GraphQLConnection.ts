@@ -52,7 +52,10 @@ export class GraphQLConnection {
     constructor(
         public readonly resources: GraphQLResource[],
         options?: ConnectionOptions,
-        private readonly onError?: (error: Error) => void
+        private readonly onError?: (
+            error: Error,
+            originalErrors?: GraphQLFormattedError[]
+        ) => void
     ) {
         this.name = options?.name ?? "graphql";
         const url = options?.url ?? "http://localhost:3000/graphql";
@@ -344,7 +347,8 @@ export class GraphQLConnection {
             );
             if (response.errors?.length) {
                 this.reportAndThrow(
-                    new Error(this.formatGraphQLErrors(response.errors))
+                    new Error(this.formatGraphQLErrors(response.errors)),
+                    response.errors
                 );
             }
             return response.data;
@@ -354,12 +358,15 @@ export class GraphQLConnection {
             if (graphQLErrors) {
                 error = new Error(this.formatGraphQLErrors(graphQLErrors));
             }
-            this.reportAndThrow(error);
+            this.reportAndThrow(error, graphQLErrors);
         }
     }
 
-    reportAndThrow(error: Error): never {
-        this.onError?.(error);
+    reportAndThrow(
+        error: Error,
+        originalErrors?: GraphQLFormattedError[]
+    ): never {
+        this.onError?.(error, originalErrors);
         throw error;
     }
 }
