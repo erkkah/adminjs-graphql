@@ -12,9 +12,9 @@
   "author": "Erik Agsjö",
   "license": "ISC",
   "dependencies": {
-    "@adminjs/koa": "file:adminjs-koa-2.0.0.tgz",
+    "@adminjs/koa": "^2.0.0",
     "admin-bro-graphql": "file:..",
-    "adminjs": "^5.2.2",
+    "adminjs": "^5.7.3",
     "graphql-tag": "^2.11.0",
     "koa": "^2.13.0",
     "koa2-formidable": "^1.0.2",
