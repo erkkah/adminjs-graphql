@@ -158,7 +158,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             const mapping = this.rawResource.count(fieldFilter);
             return await this.executeMapping(mapping);
         } catch (error) {
-            this.connection.reportAndThrow(error);
+            this.connection.reportAndThrow(error as Error);
         }
     }
 
@@ -169,7 +169,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             const result = await this.executeMapping(mapping);
             return result.map((record) => new BaseRecord(record, this));
         } catch (error) {
-            this.connection.reportAndThrow(error);
+            this.connection.reportAndThrow(error as Error);
         }
     }
 
@@ -182,7 +182,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             }
             return null;
         } catch (error) {
-            this.connection.reportAndThrow(error);
+            this.connection.reportAndThrow(error as Error);
         }
     }
 
@@ -205,7 +205,8 @@ export class GraphQLResourceAdapter extends BaseResource {
                 }
                 coerced[key] = value;
                 return coerced;
-            } catch (error) {
+            } catch (thrown) {
+                const error = thrown as Error;
                 if (value === "" && !this.propertyMap.get(key)?.isRequired()) {
                     coerced[key] = null;
                     return coerced;
@@ -271,7 +272,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             }
             return await this.executeMapping(mapping);
         } catch (error) {
-            this.connection.reportAndThrow(error);
+            this.connection.reportAndThrow(error as Error);
         }
     }
 
@@ -284,7 +285,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             }
             return await this.executeMapping(mapping);
         } catch (error) {
-            this.connection.reportAndThrow(error);
+            this.connection.reportAndThrow(error as Error);
         }
     }
 
@@ -296,7 +297,7 @@ export class GraphQLResourceAdapter extends BaseResource {
             }
             await this.executeMapping(mapping);
         } catch (error) {
-            this.connection.reportAndThrow(error);
+            this.connection.reportAndThrow(error as Error);
         }
     }
 

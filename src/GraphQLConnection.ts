@@ -1,4 +1,5 @@
 import { PropertyType } from "adminjs";
+import { AxiosError } from "axios";
 
 import {
     getIntrospectionQuery,
@@ -353,8 +354,9 @@ export class GraphQLConnection {
             }
             return response.data;
         } catch (thrown) {
-            let error = thrown;
-            const graphQLErrors = error.response?.data?.errors;
+            let error = thrown as Error;
+            const axiosError = error as AxiosError;
+            const graphQLErrors = axiosError.response?.data?.errors;
             if (graphQLErrors) {
                 error = new Error(this.formatGraphQLErrors(graphQLErrors));
             }
