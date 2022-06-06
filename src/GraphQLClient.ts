@@ -1,5 +1,7 @@
 import Axios, { AxiosInstance } from "axios";
 import { GraphQLFormattedError } from "graphql";
+import {Agent as HTTPAgent, AgentOptions} from "http";
+import {Agent as HTTPSAgent} from "https";
 
 /**
  * A minimal GraphQL client.
@@ -7,12 +9,17 @@ import { GraphQLFormattedError } from "graphql";
 export class GraphQLClient {
     private readonly axios: AxiosInstance;
 
-    constructor(endpoint: string) {
+    constructor(endpoint: string, agentOptions: AgentOptions = {}) {
+        const httpAgent = new HTTPAgent(agentOptions);
+        const httpsAgent = new HTTPSAgent(agentOptions);
+
         this.axios = Axios.create({
             baseURL: endpoint,
             headers: {
                 "content-type": "application/graphql+json",
-            }
+            },
+            httpAgent,
+            httpsAgent,
         });
     }
 

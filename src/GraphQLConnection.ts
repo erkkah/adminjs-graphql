@@ -1,5 +1,6 @@
 import { PropertyType } from "adminjs";
 import { AxiosError } from "axios";
+import { AgentOptions } from "http";
 
 import {
     getIntrospectionQuery,
@@ -37,6 +38,7 @@ export interface ConnectionOptions {
     name?: string;
     url?: string;
     headers?: () => Record<string, string>;
+    agentOptions?: AgentOptions;
 }
 
 /**
@@ -60,7 +62,7 @@ export class GraphQLConnection {
     ) {
         this.name = options?.name ?? "graphql";
         const url = options?.url ?? "http://localhost:3000/graphql";
-        this.client = new GraphQLClient(url);
+        this.client = new GraphQLClient(url, options?.agentOptions);
         this.headers = options?.headers;
     }
 
