@@ -219,8 +219,6 @@ export class GraphQLResourceAdapter extends BaseResource {
                 });
             }
         }, {} as ParamsType);
-
-        this.validateParams(converted);
         return converted;
     }
 
@@ -266,6 +264,7 @@ export class GraphQLResourceAdapter extends BaseResource {
     async create(params: ParamsType): Promise<ParamsType> {
         try {
             const inflated = inflateParams(this.convertParams(params));
+            this.validateParams(inflated);
             const mapping = this.rawResource.create?.(inflated);
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
@@ -279,6 +278,7 @@ export class GraphQLResourceAdapter extends BaseResource {
     async update(id: string, params: ParamsType): Promise<ParamsType> {
         try {
             const inflated = inflateParams(this.convertParams(params));
+            this.validateParams(inflated);
             const mapping = this.rawResource.update?.(id, inflated);
             if (!mapping) {
                 throw new ForbiddenError("Resource is not editable");
@@ -417,7 +417,7 @@ function inflateParams(
             object[steps[0]] = params[path];
         }
     }
-
+    
     return record;
 }
 
