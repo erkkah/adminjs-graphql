@@ -8,7 +8,7 @@ import {
     FindOptions,
     GraphQLAdapter,
     GraphQLConnection,
-} from "admin-bro-graphql";
+} from "adminjs-graphql";
 
 AdminJS.registerAdapter(GraphQLAdapter);
 
