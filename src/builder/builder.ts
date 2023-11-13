@@ -1,5 +1,5 @@
 import { DocumentNode } from "graphql";
-import { GraphQLResource, FieldFilter, GraphQLConnection } from "..";
+import { GraphQLResource, FieldFilter, GraphQLConnection } from "../index.js";
 import {
     ResourceWithOptions,
     ResourceOptions,
@@ -7,7 +7,7 @@ import {
     LocaleTranslationsBlock,
     FeatureType,
 } from "adminjs";
-import { FindOptions } from "../GraphQLResource";
+import { FindOptions } from "../GraphQLResource.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Entity = Record<string, any>;
@@ -365,6 +365,7 @@ export function configureResource(
     return {
         resource,
         configuration,
+        // @ts-ignore
         translations,
     };
 }
