@@ -17,8 +17,8 @@ import {
     PropertyErrors,
 } from "adminjs";
 
-import { GraphQLConnection } from ".";
-import { GraphQLPropertyAdapter } from "./GraphQLProperty";
+import { GraphQLConnection } from "./index.js";
+import { GraphQLPropertyAdapter } from "./GraphQLProperty.js";
 
 /**
  * The actual GraphQL query/mutation that will be called to

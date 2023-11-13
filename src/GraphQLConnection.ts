@@ -26,9 +26,9 @@ import {
     GraphQLNonNull,
 } from "graphql";
 
-import { GraphQLClient } from "./GraphQLClient";
-import { GraphQLPropertyAdapter } from "./GraphQLProperty";
-import { InternalGraphQLResource, GraphQLResource } from "./GraphQLResource";
+import { GraphQLClient } from "./GraphQLClient.js";
+import { GraphQLPropertyAdapter } from "./GraphQLProperty.js";
+import { InternalGraphQLResource, GraphQLResource } from "./GraphQLResource.js";
 
 /**
  * Options for the GraphQL connection.
@@ -358,6 +358,7 @@ export class GraphQLConnection {
         } catch (thrown) {
             let error = thrown as Error;
             const axiosError = error as AxiosError;
+            // @ts-ignore
             const graphQLErrors = axiosError.response?.data?.errors;
             if (graphQLErrors) {
                 error = new Error(this.formatGraphQLErrors(graphQLErrors));

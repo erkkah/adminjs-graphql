@@ -1,9 +1,9 @@
 import { BaseDatabase, BaseResource } from "adminjs";
-import { GraphQLConnection } from ".";
+import { GraphQLConnection } from "./index.js";
 import {
     GraphQLResourceAdapter,
     InternalGraphQLResource,
-} from "./GraphQLResource";
+} from "./GraphQLResource.js";
 
 class GraphQLDatabaseAdapter extends BaseDatabase {
     public constructor(public readonly connection: GraphQLConnection) {

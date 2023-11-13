@@ -1,5 +1,5 @@
 import { GraphQLFloat, GraphQLString } from "graphql";
-import { _testing } from "../src/GraphQLResource";
+import { _testing } from "./GraphQLResource.js";
 const { deflateParams, inflateParams } = _testing;
 
 describe("Resource parameter deflation", () => {
